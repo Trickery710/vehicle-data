@@ -1,0 +1,74 @@
+/* Light theme -- applied on top of the platform's default QPalette */
+
+QListWidget#navList {
+    background-color: #f2f3f5;
+    border: none;
+    outline: none;
+    font-size: 13px;
+}
+
+QListWidget#navList::item {
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin: 2px 6px;
+}
+
+QListWidget#navList::item:selected {
+    background-color: #4285f4;
+    color: white;
+}
+
+QListWidget#navList::item:hover:!selected {
+    background-color: #e4e6e9;
+}
+
+QTableView {
+    gridline-color: #dcdfe3;
+    selection-background-color: #4285f4;
+    selection-color: white;
+}
+
+QHeaderView::section {
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #dcdfe3;
+    font-weight: 600;
+}
+
+QLineEdit, QComboBox, QSpinBox, QTextEdit, QDateEdit {
+    border: 1px solid #c8ccd1;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QTextEdit:focus {
+    border: 1px solid #4285f4;
+}
+
+QPushButton {
+    border: 1px solid #c8ccd1;
+    border-radius: 4px;
+    padding: 6px 14px;
+}
+
+QPushButton#primaryButton {
+    background-color: #4285f4;
+    border: none;
+    color: white;
+    font-weight: 600;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #5a95f5;
+}
+
+QLabel#dashboardTile {
+    background-color: #f2f3f5;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+QLabel#dashboardTileValue {
+    font-size: 28px;
+    font-weight: 700;
+}

@@ -1,0 +1,103 @@
+/* Dark theme -- applied on top of the dark QPalette in theme_manager.py */
+
+QMainWindow, QDialog {
+    background-color: #25272b;
+}
+
+QToolBar {
+    background-color: #2b2d31;
+    border: none;
+    spacing: 6px;
+    padding: 4px;
+}
+
+QListWidget#navList {
+    background-color: #2b2d31;
+    border: none;
+    outline: none;
+    font-size: 13px;
+}
+
+QListWidget#navList::item {
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin: 2px 6px;
+}
+
+QListWidget#navList::item:selected {
+    background-color: #4285f4;
+    color: white;
+}
+
+QListWidget#navList::item:hover:!selected {
+    background-color: #35373b;
+}
+
+QTableView {
+    background-color: #1e2023;
+    alternate-background-color: #24262a;
+    gridline-color: #35373b;
+    border: 1px solid #35373b;
+    selection-background-color: #4285f4;
+    selection-color: white;
+}
+
+QHeaderView::section {
+    background-color: #2b2d31;
+    padding: 6px;
+    border: none;
+    border-bottom: 1px solid #35373b;
+    font-weight: 600;
+}
+
+QLineEdit, QComboBox, QSpinBox, QTextEdit, QDateEdit {
+    background-color: #1e2023;
+    border: 1px solid #45474b;
+    border-radius: 4px;
+    padding: 5px;
+}
+
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QTextEdit:focus {
+    border: 1px solid #4285f4;
+}
+
+QPushButton {
+    background-color: #3a3d42;
+    border: 1px solid #4a4d52;
+    border-radius: 4px;
+    padding: 6px 14px;
+}
+
+QPushButton:hover {
+    background-color: #45484d;
+}
+
+QPushButton:pressed {
+    background-color: #35373b;
+}
+
+QPushButton#primaryButton {
+    background-color: #4285f4;
+    border: none;
+    color: white;
+    font-weight: 600;
+}
+
+QPushButton#primaryButton:hover {
+    background-color: #5a95f5;
+}
+
+QStatusBar {
+    background-color: #2b2d31;
+}
+
+QLabel#dashboardTile {
+    background-color: #2b2d31;
+    border-radius: 8px;
+    padding: 16px;
+}
+
+QLabel#dashboardTileValue {
+    font-size: 28px;
+    font-weight: 700;
+}
