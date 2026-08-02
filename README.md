@@ -6,19 +6,34 @@ multiple technicians later. Linux-first (Ubuntu 24.04+), no Electron.
 **Stack:** FastAPI + SQLAlchemy + SQLite backend (run as a local HTTP server), PySide6
 desktop frontend (MVVM), Alembic migrations.
 
-## Status: Phase 1 complete
+## Status: Phase 2 complete
 
+**Phase 1** -- Database foundation, customer management, vehicle management:
 - Database foundation (customers, vehicles, phone numbers, mileage history, VIN decode
   cache, plus forward-looking generic attachments/notes/timeline tables for later phases)
 - Customer management (create/edit/search/deactivate, multiple phone numbers)
 - Vehicle management (create/edit/search/deactivate, offline + online VIN decode,
   mileage tracking, vehicle history timeline)
-- Full PySide6 desktop UI: Dashboard, Customers, Vehicles, dark/light theming
-- 77 automated tests (69 backend, 8 frontend), all passing; `mypy` and `ruff` clean
+
+**Phase 2** -- Repair orders, estimates, invoices:
+- Estimates: create with line items, send/approve/decline, convert to a repair order
+  (reachable only from the vehicle they belong to)
+- Repair orders: complaint/cause/correction/notes, line items (labor/parts/sublet/
+  discount/shop supplies), inspection checklist, before/after photo attachments,
+  typed-name signatures, full status lifecycle, convert to an invoice -- own top-level
+  nav tab (shop-wide, filterable by status) as well as reachable per-vehicle
+- Invoices: computed totals (subtotal/tax/grand total/balance due), multiple payments
+  with auto status transitions (draft -> partially paid -> paid), professional
+  printable PDF export (ReportLab) -- own top-level nav tab
+- Attachments feature fully wired (file upload/download/delete), left unwired in Phase 1
+- Vehicle timeline now shows the complete history: every estimate/RO/invoice event
+- Full PySide6 desktop UI: Dashboard, Customers, Vehicles, Repair Orders, Invoices,
+  dark/light theming
+- 190 automated tests (165 backend, 25 frontend), all passing; `mypy` and `ruff` clean
 
 See `/home/casey/.claude/plans/shimmering-yawning-reddy.md` (or ask Claude) for the full
-architecture writeup. Phases 2-4 (repair orders/estimates/invoices, inventory/diagnostics/
-reports, OBDPlus integration) are not yet built.
+architecture writeup. Phase 3 (parts inventory, diagnostics, reports) and Phase 4
+(OBDPlus integration) are not yet built.
 
 ## Why a local HTTP server for a single-user desktop app?
 
@@ -38,6 +53,7 @@ work_done/
 │   ├── repositories/              #   data access
 │   ├── services/                  #   business logic
 │   ├── vin/                       #   offline VIN decoder + NHTSA vPIC client
+│   ├── pdf/                       #   ReportLab invoice PDF rendering
 │   └── api/v1/                    #   FastAPI routers
 ├── frontend/mechanic_shop/        # PySide6, MVVM:
 │   ├── api_client/                #   typed HTTP client (talks only to the local API)

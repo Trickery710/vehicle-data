@@ -28,6 +28,16 @@ class Settings(BaseSettings):
     vin_online_lookup_enabled: bool = True
     vpic_timeout_seconds: float = 3.0
 
+    # Deliberately minimal placeholders for PDF invoice headers -- a real
+    # shop-settings table + Settings screen (shop info, labor rate, tax
+    # rates, invoice numbering) is Phase 3/4 scope. See backend/app/pdf/
+    # shop_info.py, which takes a small value object so swapping in a real
+    # settings table later requires no change to the PDF renderer itself.
+    shop_name: str = "Mechanic Shop Manager"
+    shop_address: str = ""
+    shop_phone: str = ""
+    shop_email: str = ""
+
     def resolved_database_url(self) -> str:
         if self.database_url:
             return self.database_url

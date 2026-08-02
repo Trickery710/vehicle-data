@@ -8,7 +8,6 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.mileage_record import MileageRecord
-from backend.app.models.timeline_event import TimelineEvent
 from backend.app.models.vehicle import Vehicle
 from backend.app.repositories.base import BaseRepository
 
@@ -69,43 +68,16 @@ class VehicleRepository(BaseRepository[Vehicle]):
         self.db.flush()
         return record
 
-    def add_timeline_event(
-        self,
-        entity_id: int,
-        entity_type: str,
-        event_type: str,
-        title: str,
-        description: str | None = None,
-        metadata_json: dict | None = None,
-    ) -> TimelineEvent:
-        event = TimelineEvent(
-            entity_id=entity_id,
-            entity_type=entity_type,
-            event_type=event_type,
-            title=title,
-            description=description,
-            metadata_json=metadata_json,
-            event_timestamp=datetime.now(UTC),
-        )
-        self.db.add(event)
-        self.db.flush()
-        return event
-
-    def get_timeline(
-        self, entity_id: int, entity_type: str, limit: int = 100
-    ) -> list[TimelineEvent]:
-        stmt = (
-            select(TimelineEvent)
-            .where(TimelineEvent.entity_id == entity_id, TimelineEvent.entity_type == entity_type)
-            .order_by(TimelineEvent.event_timestamp.desc())
-            .limit(limit)
-        )
-        return list(self.db.scalars(stmt))
-
     def get_with_mileage(self, vehicle_id: int) -> Vehicle | None:
+        # populate_existing=True: mileage records are inserted directly via
+        # add_mileage_record() (not through this relationship), so if this
+        # Vehicle is already in the session's identity map with
+        # mileage_records loaded, selectinload alone would skip re-querying
+        # an already-"loaded" collection and return stale data.
         stmt = (
             select(Vehicle)
             .options(selectinload(Vehicle.mileage_records))
             .where(Vehicle.id == vehicle_id)
+            .execution_options(populate_existing=True)
         )
         return self.db.scalars(stmt).first()

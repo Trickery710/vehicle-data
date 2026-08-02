@@ -5,7 +5,7 @@ from __future__ import annotations
 from backend.app.models.customer import Customer
 from backend.app.models.vehicle import Vehicle
 from backend.app.repositories.vehicle_repository import VehicleRepository
-from shared.mechanic_shop_shared.enums import MileageSource, TimelineEventType
+from shared.mechanic_shop_shared.enums import MileageSource
 
 
 def _make_customer(db) -> Customer:
@@ -67,25 +67,6 @@ def test_add_mileage_record_allows_lower_reading(db) -> None:
     )
     assert vehicle.current_mileage == 500
     assert len(vehicle.mileage_records) == 2
-
-
-def test_timeline_events_ordered_most_recent_first(db) -> None:
-    customer = _make_customer(db)
-    vehicle = _make_vehicle(db, customer)
-    repo = VehicleRepository(db)
-
-    repo.add_timeline_event(
-        vehicle.id, "vehicle", TimelineEventType.VEHICLE_CREATED.value, title="Vehicle added"
-    )
-    repo.add_timeline_event(
-        vehicle.id, "vehicle", TimelineEventType.MILEAGE_UPDATED.value, title="Mileage updated"
-    )
-
-    events = repo.get_timeline(vehicle.id, "vehicle")
-    assert [e.event_type for e in events] == [
-        TimelineEventType.MILEAGE_UPDATED.value,
-        TimelineEventType.VEHICLE_CREATED.value,
-    ]
 
 
 def test_search_matches_vin_plate_and_make(db) -> None:

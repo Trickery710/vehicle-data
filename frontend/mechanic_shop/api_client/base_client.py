@@ -57,8 +57,33 @@ class ApiClient:
     def patch(self, path: str, json: dict | None = None) -> Any:
         return self._request("PATCH", path, json=json)
 
+    def put(self, path: str, json: dict | list | None = None) -> Any:
+        return self._request("PUT", path, json=json)
+
     def delete(self, path: str) -> Any:
         return self._request("DELETE", path)
+
+    def post_multipart(self, path: str, data: dict, files: dict) -> Any:
+        """``data`` becomes multipart form fields, ``files`` is httpx's
+        ``files=`` mapping (e.g. ``{"file": (filename, bytes, content_type)}``)."""
+        return self._request("POST", path, data=data, files=files)
+
+    def get_bytes(self, path: str) -> tuple[bytes, str]:
+        """Returns ``(content, content_type)`` for binary responses
+        (attachment downloads, PDF export) that aren't JSON."""
+        try:
+            response = self._client.request("GET", path)
+        except httpx.RequestError as exc:
+            raise ApiConnectionError(
+                f"Could not reach the backend at {self._client.base_url}{path}: {exc}"
+            ) from exc
+
+        if response.status_code == 404:
+            raise ApiNotFoundError(_error_detail(response))
+        if response.status_code >= 500:
+            raise ApiServerError(_error_detail(response))
+        response.raise_for_status()
+        return response.content, response.headers.get("content-type", "application/octet-stream")
 
     def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:

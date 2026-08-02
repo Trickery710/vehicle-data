@@ -1,0 +1,79 @@
+"""Repair order list view: shop-wide, searchable, filterable by status."""
+
+from __future__ import annotations
+
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QComboBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+
+from frontend.mechanic_shop.viewmodels.repair_order_list_viewmodel import RepairOrderListViewModel
+from shared.mechanic_shop_shared.enums import RepairOrderStatus
+
+_STATUS_FILTER_CHOICES = ["All", *[s.value for s in RepairOrderStatus]]
+
+
+class RepairOrderListView(QWidget):
+    repair_order_selected = Signal(int)
+
+    def __init__(self, viewmodel: RepairOrderListViewModel) -> None:
+        super().__init__()
+        self.viewmodel = viewmodel
+
+        layout = QVBoxLayout(self)
+
+        heading = QLabel("Repair Orders")
+        heading.setStyleSheet("font-size: 20px; font-weight: 600;")
+        layout.addWidget(heading)
+
+        filter_row = QHBoxLayout()
+        self._search_box = QLineEdit()
+        self._search_box.setPlaceholderText("Search by RO # or complaint...")
+        self._search_box.textChanged.connect(self.viewmodel.set_search_query)
+        filter_row.addWidget(self._search_box, stretch=1)
+
+        self._status_combo = QComboBox()
+        self._status_combo.addItems(_STATUS_FILTER_CHOICES)
+        self._status_combo.currentTextChanged.connect(self._on_status_filter_changed)
+        filter_row.addWidget(self._status_combo)
+        layout.addLayout(filter_row)
+
+        self._table = QTableView()
+        self._table.setModel(self.viewmodel.table_model)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._table.doubleClicked.connect(self._on_row_double_clicked)
+        layout.addWidget(self._table)
+
+        self._status_label = QLabel("")
+        layout.addWidget(self._status_label)
+
+        self.viewmodel.repair_orders_changed.connect(self._on_repair_orders_changed)
+        self.viewmodel.error_occurred.connect(self._on_error)
+
+    def load(self) -> None:
+        self.viewmodel.load()
+
+    def _on_status_filter_changed(self, status: str) -> None:
+        self.viewmodel.set_status_filter(None if status == "All" else status)
+
+    def _on_row_double_clicked(self, index) -> None:
+        repair_order = self.viewmodel.table_model.repair_order_at(index.row())
+        if repair_order is not None and repair_order.id is not None:
+            self.repair_order_selected.emit(repair_order.id)
+
+    def _on_repair_orders_changed(self) -> None:
+        self._status_label.setText(f"{self.viewmodel.total} repair order(s)")
+
+    def _on_error(self, message: str) -> None:
+        QMessageBox.warning(self, "Error", message)

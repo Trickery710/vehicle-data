@@ -84,5 +84,77 @@ class AttachmentType(StrEnum):
 class TimelineEventType(StrEnum):
     VEHICLE_CREATED = "vehicle_created"
     MILEAGE_UPDATED = "mileage_updated"
+    ESTIMATE_CREATED = "estimate_created"
+    ESTIMATE_SENT = "estimate_sent"
+    ESTIMATE_APPROVED = "estimate_approved"
+    ESTIMATE_DECLINED = "estimate_declined"
+    ESTIMATE_CONVERTED = "estimate_converted"
+    REPAIR_ORDER_CREATED = "repair_order_created"
+    REPAIR_ORDER_STATUS_CHANGED = "repair_order_status_changed"
+    REPAIR_ORDER_CONVERTED_TO_INVOICE = "repair_order_converted_to_invoice"
+    INVOICE_CREATED = "invoice_created"
+    INVOICE_SENT = "invoice_sent"
+    PAYMENT_RECEIVED = "payment_received"
+    INVOICE_PAID_IN_FULL = "invoice_paid_in_full"
+    INVOICE_VOIDED = "invoice_voided"
     # Future phases append values here (NOTE_ADDED, ATTACHMENT_ADDED,
-    # REPAIR_ORDER_CREATED, OBD_SCAN_PERFORMED, ...) with no migration needed.
+    # OBD_SCAN_PERFORMED, ...) with no migration needed.
+
+
+class EstimateStatus(StrEnum):
+    DRAFT = "draft"
+    SENT = "sent"
+    APPROVED = "approved"
+    DECLINED = "declined"
+    CONVERTED = "converted"
+
+
+class RepairOrderStatus(StrEnum):
+    ESTIMATE = "estimate"
+    APPROVED = "approved"
+    WAITING_ON_PARTS = "waiting_on_parts"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    DELIVERED = "delivered"
+    CANCELLED = "cancelled"
+
+
+class InvoiceStatus(StrEnum):
+    DRAFT = "draft"
+    SENT = "sent"
+    PARTIALLY_PAID = "partially_paid"
+    PAID = "paid"
+    VOID = "void"
+
+
+class LineItemType(StrEnum):
+    LABOR = "labor"
+    PART = "part"
+    SUBLET = "sublet"
+    DISCOUNT = "discount"
+    SHOP_SUPPLIES = "shop_supplies"
+
+
+class InspectionResult(StrEnum):
+    PASS = "pass"
+    FAIL = "fail"
+    NOT_APPLICABLE = "na"
+
+
+class SignerRole(StrEnum):
+    CUSTOMER = "customer"
+    TECHNICIAN = "technician"
+
+
+class PaymentMethod(StrEnum):
+    CASH = "cash"
+    CHECK = "check"
+    CREDIT_CARD = "credit_card"
+    DEBIT_CARD = "debit_card"
+    ACH = "ach"
+    OTHER = "other"
+
+
+class PhotoStage(StrEnum):
+    BEFORE = "before"
+    AFTER = "after"

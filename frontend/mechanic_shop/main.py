@@ -13,8 +13,12 @@ import sys
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from frontend.mechanic_shop.api_client.attachment_client import AttachmentApiClient
 from frontend.mechanic_shop.api_client.base_client import ApiClient
 from frontend.mechanic_shop.api_client.customer_client import CustomerApiClient
+from frontend.mechanic_shop.api_client.estimate_client import EstimateApiClient
+from frontend.mechanic_shop.api_client.invoice_client import InvoiceApiClient
+from frontend.mechanic_shop.api_client.repair_order_client import RepairOrderApiClient
 from frontend.mechanic_shop.api_client.vehicle_client import VehicleApiClient
 from frontend.mechanic_shop.logging_config import configure_logging
 from frontend.mechanic_shop.server_manager import BackendStartupError, ServerManager
@@ -43,11 +47,23 @@ def main() -> int:
     api_client = ApiClient(base_url=server_manager.api_base_url)
     customer_client = CustomerApiClient(api_client)
     vehicle_client = VehicleApiClient(api_client)
+    estimate_client = EstimateApiClient(api_client)
+    repair_order_client = RepairOrderApiClient(api_client)
+    invoice_client = InvoiceApiClient(api_client)
+    attachment_client = AttachmentApiClient(api_client)
 
     theme_manager = ThemeManager(app)
     theme_manager.apply_saved_theme()
 
-    window = MainWindow(customer_client, vehicle_client, theme_manager)
+    window = MainWindow(
+        customer_client,
+        vehicle_client,
+        estimate_client,
+        repair_order_client,
+        invoice_client,
+        attachment_client,
+        theme_manager,
+    )
     window.show()
 
     exit_code = app.exec()

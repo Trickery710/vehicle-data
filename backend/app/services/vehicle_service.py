@@ -8,17 +8,19 @@ from backend.app.core.exceptions import ConflictError, NotFoundError
 from backend.app.models.timeline_event import TimelineEvent
 from backend.app.models.vehicle import Vehicle
 from backend.app.repositories.customer_repository import CustomerRepository
+from backend.app.repositories.timeline_repository import TimelineRepository
 from backend.app.repositories.vehicle_repository import VehicleRepository
 from backend.app.schemas.vehicle import VehicleCreate, VehicleUpdate
 from backend.app.services.vin_decode_service import VinDecodeService
 from backend.app.vin.schemas import VinDecodeResult
 from shared.mechanic_shop_shared.enums import (
+    EntityType,
     MileageSource,
     TimelineEventType,
     VinDecodeSource,
 )
 
-ENTITY_TYPE_VEHICLE = "vehicle"
+ENTITY_TYPE_VEHICLE = EntityType.VEHICLE.value
 
 
 class VehicleService:
@@ -27,10 +29,12 @@ class VehicleService:
         vehicle_repo: VehicleRepository,
         customer_repo: CustomerRepository,
         vin_decode_service: VinDecodeService,
+        timeline_repo: TimelineRepository,
     ) -> None:
         self._vehicle_repo = vehicle_repo
         self._customer_repo = customer_repo
         self._vin_decode_service = vin_decode_service
+        self._timeline_repo = timeline_repo
 
     def decode_vin(self, vin: str, allow_online_lookup: bool = True) -> VinDecodeResult:
         return self._vin_decode_service.decode(vin, allow_online_lookup=allow_online_lookup)
@@ -72,7 +76,7 @@ class VehicleService:
                 vehicle, data.initial_mileage, source=MileageSource.INITIAL_VEHICLE_CREATION.value
             )
 
-        self._vehicle_repo.add_timeline_event(
+        self._timeline_repo.add_event(
             entity_id=vehicle.id,
             entity_type=ENTITY_TYPE_VEHICLE,
             event_type=TimelineEventType.VEHICLE_CREATED.value,
@@ -149,7 +153,7 @@ class VehicleService:
         vehicle = self.get_vehicle(vehicle_id)
         previous_mileage = vehicle.current_mileage
         self._vehicle_repo.add_mileage_record(vehicle, mileage, source=source, notes=notes)
-        self._vehicle_repo.add_timeline_event(
+        self._timeline_repo.add_event(
             entity_id=vehicle.id,
             entity_type=ENTITY_TYPE_VEHICLE,
             event_type=TimelineEventType.MILEAGE_UPDATED.value,
@@ -160,4 +164,4 @@ class VehicleService:
 
     def get_timeline(self, vehicle_id: int) -> list[TimelineEvent]:
         self.get_vehicle(vehicle_id)  # raises NotFoundError if missing
-        return self._vehicle_repo.get_timeline(vehicle_id, ENTITY_TYPE_VEHICLE)
+        return self._timeline_repo.get_for_entity(vehicle_id, ENTITY_TYPE_VEHICLE)

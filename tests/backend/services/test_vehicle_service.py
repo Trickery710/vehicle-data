@@ -12,6 +12,7 @@ import respx
 
 from backend.app.core.exceptions import ConflictError, NotFoundError
 from backend.app.repositories.customer_repository import CustomerRepository
+from backend.app.repositories.timeline_repository import TimelineRepository
 from backend.app.repositories.vehicle_repository import VehicleRepository
 from backend.app.repositories.vin_decode_cache_repository import VinDecodeCacheRepository
 from backend.app.schemas.customer import CustomerCreate
@@ -28,7 +29,9 @@ VALID_NA_VIN = "1HGCM82633A004352"
 @pytest.fixture()
 def vehicle_service(db) -> VehicleService:
     vin_service = VinDecodeService(VinDecodeCacheRepository(db), VpicClient())
-    return VehicleService(VehicleRepository(db), CustomerRepository(db), vin_service)
+    return VehicleService(
+        VehicleRepository(db), CustomerRepository(db), vin_service, TimelineRepository(db)
+    )
 
 
 @pytest.fixture()

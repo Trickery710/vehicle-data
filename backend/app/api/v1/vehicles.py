@@ -4,9 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Query
 
-from backend.app.api.deps import VehicleServiceDep
+from backend.app.api.deps import (
+    EstimateServiceDep,
+    InvoiceServiceDep,
+    RepairOrderServiceDep,
+    VehicleServiceDep,
+)
 from backend.app.schemas.common import PaginatedResponse
+from backend.app.schemas.estimate import EstimateRead
+from backend.app.schemas.invoice import InvoiceRead
 from backend.app.schemas.mileage import MileageRecordCreate, TimelineEventRead
+from backend.app.schemas.repair_order import RepairOrderRead
 from backend.app.schemas.vehicle import (
     VehicleCreate,
     VehicleRead,
@@ -82,3 +90,20 @@ def add_mileage(
 def get_vehicle_timeline(vehicle_id: int, service: VehicleServiceDep) -> list[TimelineEventRead]:
     events = service.get_timeline(vehicle_id)
     return [TimelineEventRead.model_validate(e) for e in events]
+
+
+@router.get("/{vehicle_id}/estimates", response_model=list[EstimateRead])
+def list_vehicle_estimates(vehicle_id: int, service: EstimateServiceDep) -> list[EstimateRead]:
+    return [EstimateRead.model_validate(e) for e in service.list_for_vehicle(vehicle_id)]
+
+
+@router.get("/{vehicle_id}/repair-orders", response_model=list[RepairOrderRead])
+def list_vehicle_repair_orders(
+    vehicle_id: int, service: RepairOrderServiceDep
+) -> list[RepairOrderRead]:
+    return [RepairOrderRead.model_validate(ro) for ro in service.list_for_vehicle(vehicle_id)]
+
+
+@router.get("/{vehicle_id}/invoices", response_model=list[InvoiceRead])
+def list_vehicle_invoices(vehicle_id: int, service: InvoiceServiceDep) -> list[InvoiceRead]:
+    return [InvoiceRead.model_validate(inv) for inv in service.list_for_vehicle(vehicle_id)]

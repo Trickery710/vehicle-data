@@ -19,20 +19,43 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from frontend.mechanic_shop.api_client.protocols import (
+    EstimateApiClientProtocol,
+    InvoiceApiClientProtocol,
+    RepairOrderApiClientProtocol,
+)
+from frontend.mechanic_shop.models.estimate import Estimate
+from frontend.mechanic_shop.models.invoice import Invoice
+from frontend.mechanic_shop.models.repair_order import RepairOrder
 from frontend.mechanic_shop.viewmodels.vehicle_detail_viewmodel import VehicleDetailViewModel
 from frontend.mechanic_shop.views.widgets.vin_input_widget import VinInputWidget
 from shared.mechanic_shop_shared.enums import DriveType, FuelType
 
 _MAX_MILEAGE = 2_000_000
+_ID_ROLE = 1000
 
 
 class VehicleDetailView(QWidget):
     closed = Signal()
     saved = Signal(int)
+    estimate_selected = Signal(int)
+    add_estimate_requested = Signal(int)
+    repair_order_selected = Signal(int)
+    add_repair_order_requested = Signal(int)
+    invoice_selected = Signal(int)
 
-    def __init__(self, viewmodel: VehicleDetailViewModel) -> None:
+    def __init__(
+        self,
+        viewmodel: VehicleDetailViewModel,
+        estimate_client: EstimateApiClientProtocol,
+        repair_order_client: RepairOrderApiClientProtocol,
+        invoice_client: InvoiceApiClientProtocol,
+    ) -> None:
         super().__init__()
         self.viewmodel = viewmodel
+        self._estimate_client = estimate_client
+        self._repair_order_client = repair_order_client
+        self._invoice_client = invoice_client
 
         layout = QVBoxLayout(self)
 
@@ -115,6 +138,43 @@ class VehicleDetailView(QWidget):
         button_row.addWidget(self._save_button)
         layout.addLayout(button_row)
 
+        estimates_header = QHBoxLayout()
+        estimates_header.addWidget(QLabel("Estimates"))
+        estimates_header.addStretch(1)
+        add_estimate_button = QPushButton("New Estimate")
+        add_estimate_button.clicked.connect(
+            lambda: self.add_estimate_requested.emit(self.viewmodel.vehicle_id)
+        )
+        estimates_header.addWidget(add_estimate_button)
+        layout.addLayout(estimates_header)
+        self._estimates_list = QListWidget()
+        self._estimates_list.itemDoubleClicked.connect(
+            lambda item: self.estimate_selected.emit(item.data(_ID_ROLE))
+        )
+        layout.addWidget(self._estimates_list)
+
+        repair_orders_header = QHBoxLayout()
+        repair_orders_header.addWidget(QLabel("Repair Orders"))
+        repair_orders_header.addStretch(1)
+        add_repair_order_button = QPushButton("New Repair Order")
+        add_repair_order_button.clicked.connect(
+            lambda: self.add_repair_order_requested.emit(self.viewmodel.vehicle_id)
+        )
+        repair_orders_header.addWidget(add_repair_order_button)
+        layout.addLayout(repair_orders_header)
+        self._repair_orders_list = QListWidget()
+        self._repair_orders_list.itemDoubleClicked.connect(
+            lambda item: self.repair_order_selected.emit(item.data(_ID_ROLE))
+        )
+        layout.addWidget(self._repair_orders_list)
+
+        layout.addWidget(QLabel("Invoices"))
+        self._invoices_list = QListWidget()
+        self._invoices_list.itemDoubleClicked.connect(
+            lambda item: self.invoice_selected.emit(item.data(_ID_ROLE))
+        )
+        layout.addWidget(self._invoices_list)
+
         self.viewmodel.vehicle_loaded.connect(self._on_vehicle_loaded)
         self.viewmodel.timeline_loaded.connect(self._on_timeline_loaded)
         self.viewmodel.vin_decoded.connect(self._vin_widget.show_decode_result)
@@ -124,6 +184,46 @@ class VehicleDetailView(QWidget):
 
     def load(self) -> None:
         self.viewmodel.load()
+        if not self.viewmodel.is_new:
+            self._load_related_records()
+
+    def _load_related_records(self) -> None:
+        vehicle_id = self.viewmodel.vehicle_id
+        if vehicle_id is None:
+            return
+        self.viewmodel.run_in_background(
+            lambda: self._estimate_client.list_for_vehicle(vehicle_id),
+            on_success=self._on_estimates_loaded,
+        )
+        self.viewmodel.run_in_background(
+            lambda: self._repair_order_client.list_for_vehicle(vehicle_id),
+            on_success=self._on_repair_orders_loaded,
+        )
+        self.viewmodel.run_in_background(
+            lambda: self._invoice_client.list_for_vehicle(vehicle_id),
+            on_success=self._on_invoices_loaded,
+        )
+
+    def _on_estimates_loaded(self, estimates: list[Estimate]) -> None:
+        self._estimates_list.clear()
+        for estimate in estimates:
+            item = QListWidgetItem(estimate.display_name)
+            item.setData(_ID_ROLE, estimate.id)
+            self._estimates_list.addItem(item)
+
+    def _on_repair_orders_loaded(self, repair_orders: list[RepairOrder]) -> None:
+        self._repair_orders_list.clear()
+        for repair_order in repair_orders:
+            item = QListWidgetItem(repair_order.display_name)
+            item.setData(_ID_ROLE, repair_order.id)
+            self._repair_orders_list.addItem(item)
+
+    def _on_invoices_loaded(self, invoices: list[Invoice]) -> None:
+        self._invoices_list.clear()
+        for invoice in invoices:
+            item = QListWidgetItem(invoice.display_name)
+            item.setData(_ID_ROLE, invoice.id)
+            self._invoices_list.addItem(item)
 
     def _on_vehicle_loaded(self) -> None:
         vehicle = self.viewmodel.vehicle
