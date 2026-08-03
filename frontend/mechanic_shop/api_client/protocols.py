@@ -7,16 +7,36 @@ structurally -- no inheritance needed) with zero network involved.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Protocol
 
 from frontend.mechanic_shop.models.attachment import Attachment
 from frontend.mechanic_shop.models.customer import Customer
+from frontend.mechanic_shop.models.diagnostic import (
+    DiagnosticReading,
+    DiagnosticSession,
+    DiagnosticTroubleCode,
+)
 from frontend.mechanic_shop.models.estimate import Estimate
 from frontend.mechanic_shop.models.invoice import Invoice, InvoiceTotals, Payment
 from frontend.mechanic_shop.models.line_item import LineItem
+from frontend.mechanic_shop.models.part import InventoryAdjustment, Part, PartCompatibility
+from frontend.mechanic_shop.models.purchase_order import PurchaseOrder
 from frontend.mechanic_shop.models.repair_order import InspectionChecklistItem, RepairOrder
+from frontend.mechanic_shop.models.report import (
+    CustomerHistoryReport,
+    InventoryReport,
+    LaborHoursReport,
+    PartsSoldReport,
+    ProfitReport,
+    RevenueReport,
+    SalesTaxReport,
+    TechnicianProductivityReport,
+    VehicleHistoryReport,
+)
 from frontend.mechanic_shop.models.signature import Signature
+from frontend.mechanic_shop.models.supplier import Supplier
 from frontend.mechanic_shop.models.vehicle import TimelineEvent, Vehicle, VinDecodeResult
 
 
@@ -93,6 +113,13 @@ class RepairOrderApiClientProtocol(Protocol):
         warranty_notes: str | None = None,
         due_date: str | None = None,
     ) -> Invoice: ...
+    def add_part_from_inventory(
+        self,
+        repair_order_id: int,
+        part_id: int,
+        quantity: float,
+        unit_price: float | None = None,
+    ) -> LineItem: ...
 
 
 class InvoiceApiClientProtocol(Protocol):
@@ -131,3 +158,98 @@ class AttachmentApiClientProtocol(Protocol):
     def get_attachment(self, attachment_id: int) -> Attachment: ...
     def download(self, attachment_id: int) -> bytes: ...
     def delete_attachment(self, attachment_id: int) -> None: ...
+
+
+class PartApiClientProtocol(Protocol):
+    def list_parts(
+        self,
+        query: str | None = None,
+        below_minimum_only: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Part], int]: ...
+    def get_part(self, part_id: int) -> Part: ...
+    def get_by_barcode(self, barcode: str) -> Part: ...
+    def create_part(self, part: Part, initial_quantity_on_hand: int = 0) -> Part: ...
+    def update_part(self, part_id: int, part: Part) -> Part: ...
+    def deactivate_part(self, part_id: int) -> Part: ...
+    def reactivate_part(self, part_id: int) -> Part: ...
+    def replace_compatibility(
+        self, part_id: int, compatibility: list[PartCompatibility]
+    ) -> list[PartCompatibility]: ...
+    def record_manual_count_correction(
+        self, part_id: int, quantity_on_hand: int, notes: str | None = None
+    ) -> InventoryAdjustment: ...
+    def list_adjustments(self, part_id: int) -> list[InventoryAdjustment]: ...
+
+
+class SupplierApiClientProtocol(Protocol):
+    def list_suppliers(
+        self, query: str | None = None, limit: int = 50, offset: int = 0
+    ) -> tuple[list[Supplier], int]: ...
+    def get_supplier(self, supplier_id: int) -> Supplier: ...
+    def create_supplier(self, supplier: Supplier) -> Supplier: ...
+    def update_supplier(self, supplier_id: int, supplier: Supplier) -> Supplier: ...
+    def deactivate_supplier(self, supplier_id: int) -> Supplier: ...
+    def list_purchase_orders(self, supplier_id: int) -> list[PurchaseOrder]: ...
+
+
+class PurchaseOrderApiClientProtocol(Protocol):
+    def list_purchase_orders(
+        self,
+        status: str | None = None,
+        query: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[PurchaseOrder], int]: ...
+    def get_purchase_order(self, purchase_order_id: int) -> PurchaseOrder: ...
+    def create_purchase_order(self, purchase_order: PurchaseOrder) -> PurchaseOrder: ...
+    def mark_ordered(self, purchase_order_id: int) -> PurchaseOrder: ...
+    def receive_items(self, purchase_order_id: int, receipts: list[dict]) -> PurchaseOrder: ...
+    def record_return(
+        self, purchase_order_id: int, part_id: int, quantity: int, notes: str | None = None
+    ) -> InventoryAdjustment: ...
+    def cancel_purchase_order(self, purchase_order_id: int) -> PurchaseOrder: ...
+
+
+class DiagnosticApiClientProtocol(Protocol):
+    def list_for_vehicle(self, vehicle_id: int) -> list[DiagnosticSession]: ...
+    def get_session(self, session_id: int) -> DiagnosticSession: ...
+    def create_session(self, session: DiagnosticSession) -> DiagnosticSession: ...
+    def update_session(self, session_id: int, session: DiagnosticSession) -> DiagnosticSession: ...
+    def replace_trouble_codes(
+        self, session_id: int, codes: list[DiagnosticTroubleCode]
+    ) -> list[DiagnosticTroubleCode]: ...
+    def replace_readings(
+        self, session_id: int, readings: list[DiagnosticReading]
+    ) -> list[DiagnosticReading]: ...
+
+
+class ReportApiClientProtocol(Protocol):
+    def revenue(
+        self, start_date: date, end_date: date, group_by: str | None = None
+    ) -> RevenueReport: ...
+    def sales_tax(
+        self, start_date: date, end_date: date, group_by: str | None = None
+    ) -> SalesTaxReport: ...
+    def profit(
+        self, start_date: date, end_date: date, group_by: str | None = None
+    ) -> ProfitReport: ...
+    def labor_hours(
+        self, start_date: date, end_date: date, technician: str | None = None
+    ) -> LaborHoursReport: ...
+    def parts_sold(self, start_date: date, end_date: date) -> PartsSoldReport: ...
+    def technician_productivity(
+        self, start_date: date, end_date: date
+    ) -> TechnicianProductivityReport: ...
+    def inventory(self, below_minimum_only: bool = False) -> InventoryReport: ...
+    def vehicle_history(self, vehicle_id: int) -> VehicleHistoryReport: ...
+    def customer_history(self, customer_id: int) -> CustomerHistoryReport: ...
+    def export_report(
+        self,
+        report_path: str,
+        fmt: str,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        **extra_params: object,
+    ) -> tuple[bytes, str]: ...

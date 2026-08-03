@@ -15,6 +15,7 @@ class LineItem:
     unit_price: float = 0
     is_taxable: bool = True
     part_number: str | None = None
+    part_id: int | None = None
     warranty_text: str | None = None
     sort_order: int = 0
     line_total: float = 0
@@ -29,6 +30,7 @@ class LineItem:
             unit_price=data.get("unit_price", 0),
             is_taxable=data.get("is_taxable", True),
             part_number=data.get("part_number"),
+            part_id=data.get("part_id"),
             warranty_text=data.get("warranty_text"),
             sort_order=data.get("sort_order", 0),
             line_total=data.get("line_total", 0),
@@ -42,6 +44,7 @@ class LineItem:
             "unit_price": self.unit_price,
             "is_taxable": self.is_taxable,
             "part_number": self.part_number,
+            "part_id": self.part_id,
             "warranty_text": self.warranty_text,
             "sort_order": self.sort_order,
         }

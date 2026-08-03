@@ -11,6 +11,7 @@ from backend.app.repositories.inspection_checklist_repository import InspectionC
 from backend.app.repositories.invoice_repository import InvoiceRepository
 from backend.app.repositories.line_item_repository import LineItemRepository
 from backend.app.repositories.number_sequence_repository import NumberSequenceRepository
+from backend.app.repositories.part_repository import PartRepository
 from backend.app.repositories.payment_repository import PaymentRepository
 from backend.app.repositories.repair_order_repository import RepairOrderRepository
 from backend.app.repositories.signature_repository import SignatureRepository
@@ -44,6 +45,7 @@ def estimate_service(db) -> EstimateService:
         TimelineRepository(db),
         NumberSequenceRepository(db),
         invoice_service,
+        PartRepository(db),
     )
     return EstimateService(
         EstimateRepository(db),

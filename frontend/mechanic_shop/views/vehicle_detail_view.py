@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -20,10 +21,13 @@ from PySide6.QtWidgets import (
 )
 
 from frontend.mechanic_shop.api_client.protocols import (
+    DiagnosticApiClientProtocol,
     EstimateApiClientProtocol,
     InvoiceApiClientProtocol,
     RepairOrderApiClientProtocol,
+    ReportApiClientProtocol,
 )
+from frontend.mechanic_shop.models.diagnostic import DiagnosticSession
 from frontend.mechanic_shop.models.estimate import Estimate
 from frontend.mechanic_shop.models.invoice import Invoice
 from frontend.mechanic_shop.models.repair_order import RepairOrder
@@ -43,6 +47,8 @@ class VehicleDetailView(QWidget):
     repair_order_selected = Signal(int)
     add_repair_order_requested = Signal(int)
     invoice_selected = Signal(int)
+    diagnostic_session_selected = Signal(int)
+    add_diagnostic_session_requested = Signal(int)
 
     def __init__(
         self,
@@ -50,12 +56,16 @@ class VehicleDetailView(QWidget):
         estimate_client: EstimateApiClientProtocol,
         repair_order_client: RepairOrderApiClientProtocol,
         invoice_client: InvoiceApiClientProtocol,
+        diagnostic_client: DiagnosticApiClientProtocol,
+        report_client: ReportApiClientProtocol,
     ) -> None:
         super().__init__()
         self.viewmodel = viewmodel
         self._estimate_client = estimate_client
         self._repair_order_client = repair_order_client
         self._invoice_client = invoice_client
+        self._diagnostic_client = diagnostic_client
+        self._report_client = report_client
 
         layout = QVBoxLayout(self)
 
@@ -175,6 +185,28 @@ class VehicleDetailView(QWidget):
         )
         layout.addWidget(self._invoices_list)
 
+        diagnostics_header = QHBoxLayout()
+        diagnostics_header.addWidget(QLabel("Diagnostic Sessions"))
+        diagnostics_header.addStretch(1)
+        add_diagnostic_button = QPushButton("New Diagnostic Session")
+        add_diagnostic_button.clicked.connect(
+            lambda: self.add_diagnostic_session_requested.emit(self.viewmodel.vehicle_id)
+        )
+        diagnostics_header.addWidget(add_diagnostic_button)
+        layout.addLayout(diagnostics_header)
+        self._diagnostic_sessions_list = QListWidget()
+        self._diagnostic_sessions_list.itemDoubleClicked.connect(
+            lambda item: self.diagnostic_session_selected.emit(item.data(_ID_ROLE))
+        )
+        layout.addWidget(self._diagnostic_sessions_list)
+
+        export_row = QHBoxLayout()
+        export_row.addStretch(1)
+        export_button = QPushButton("Export History Report...")
+        export_button.clicked.connect(self._on_export_history_clicked)
+        export_row.addWidget(export_button)
+        layout.addLayout(export_row)
+
         self.viewmodel.vehicle_loaded.connect(self._on_vehicle_loaded)
         self.viewmodel.timeline_loaded.connect(self._on_timeline_loaded)
         self.viewmodel.vin_decoded.connect(self._vin_widget.show_decode_result)
@@ -203,6 +235,10 @@ class VehicleDetailView(QWidget):
             lambda: self._invoice_client.list_for_vehicle(vehicle_id),
             on_success=self._on_invoices_loaded,
         )
+        self.viewmodel.run_in_background(
+            lambda: self._diagnostic_client.list_for_vehicle(vehicle_id),
+            on_success=self._on_diagnostic_sessions_loaded,
+        )
 
     def _on_estimates_loaded(self, estimates: list[Estimate]) -> None:
         self._estimates_list.clear()
@@ -224,6 +260,37 @@ class VehicleDetailView(QWidget):
             item = QListWidgetItem(invoice.display_name)
             item.setData(_ID_ROLE, invoice.id)
             self._invoices_list.addItem(item)
+
+    def _on_diagnostic_sessions_loaded(self, sessions: list[DiagnosticSession]) -> None:
+        self._diagnostic_sessions_list.clear()
+        for session in sessions:
+            item = QListWidgetItem(session.display_name)
+            item.setData(_ID_ROLE, session.id)
+            self._diagnostic_sessions_list.addItem(item)
+
+    def _on_export_history_clicked(self) -> None:
+        vehicle_id = self.viewmodel.vehicle_id
+        if vehicle_id is None:
+            return
+        file_path, _filter = QFileDialog.getSaveFileName(
+            self, "Export Vehicle History", f"vehicle_{vehicle_id}_history.pdf"
+        )
+        if not file_path:
+            return
+        fmt = "csv" if file_path.lower().endswith(".csv") else "pdf"
+
+        def _do() -> bytes:
+            content, _content_type = self._report_client.export_report(
+                f"vehicle-history/{vehicle_id}", fmt
+            )
+            return content
+
+        def _on_success(content: bytes) -> None:
+            with open(file_path, "wb") as f:
+                f.write(content)
+            QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
+
+        self.viewmodel.run_in_background(_do, on_success=_on_success)
 
     def _on_vehicle_loaded(self) -> None:
         vehicle = self.viewmodel.vehicle

@@ -110,6 +110,27 @@ class RepairOrderDetailViewModel(BaseViewModel):
 
         self.run_in_background(_do, on_success=_on_success)
 
+    def add_part_from_inventory(
+        self, part_id: int, quantity: float, unit_price: float | None = None
+    ) -> None:
+        """Explicit dedicated action -- reloads line items directly via
+        ``load_line_items()`` afterwards, not through ``LineItemEditor``'s
+        ``changed`` signal path, to avoid re-triggering the unrelated
+        full-replace flow that signal is wired to."""
+        repair_order_id = self.repair_order_id
+        if repair_order_id is None:
+            return
+
+        def _do() -> LineItem:
+            return self._client.add_part_from_inventory(
+                repair_order_id, part_id, quantity, unit_price
+            )
+
+        def _on_success(_line_item: LineItem) -> None:
+            self.load_line_items()
+
+        self.run_in_background(_do, on_success=_on_success)
+
     def replace_checklist_items(self, items: list[InspectionChecklistItem]) -> None:
         if self.repair_order_id is None:
             return

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from backend.app.core.exceptions import NotFoundError
+from backend.app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.app.models.estimate import Estimate
 from backend.app.models.inspection_checklist_item import InspectionChecklistItem
 from backend.app.models.invoice import Invoice
@@ -17,6 +17,7 @@ from backend.app.repositories.estimate_repository import EstimateRepository
 from backend.app.repositories.inspection_checklist_repository import InspectionChecklistRepository
 from backend.app.repositories.line_item_repository import LineItemRepository
 from backend.app.repositories.number_sequence_repository import NumberSequenceRepository
+from backend.app.repositories.part_repository import PartRepository
 from backend.app.repositories.repair_order_repository import RepairOrderRepository
 from backend.app.repositories.signature_repository import SignatureRepository
 from backend.app.repositories.timeline_repository import TimelineRepository
@@ -25,7 +26,13 @@ from backend.app.schemas.repair_order import RepairOrderCreate, RepairOrderUpdat
 from backend.app.schemas.signature import SignatureCreate
 from backend.app.services.invoice_service import InvoiceService
 from backend.app.services.line_item_builder import build_line_items
-from shared.mechanic_shop_shared.enums import EntityType, RepairOrderStatus, TimelineEventType
+from shared.mechanic_shop_shared.enums import (
+    EntityType,
+    InventoryAdjustmentReason,
+    LineItemType,
+    RepairOrderStatus,
+    TimelineEventType,
+)
 
 _STATUS_TIMESTAMP_FIELDS = {
     RepairOrderStatus.IN_PROGRESS.value: "started_at",
@@ -47,6 +54,7 @@ class RepairOrderService:
         timeline_repo: TimelineRepository,
         number_sequence_repo: NumberSequenceRepository,
         invoice_service: InvoiceService,
+        part_repo: PartRepository,
     ) -> None:
         self._repair_order_repo = repair_order_repo
         self._vehicle_repo = vehicle_repo
@@ -57,6 +65,7 @@ class RepairOrderService:
         self._timeline_repo = timeline_repo
         self._number_sequence_repo = number_sequence_repo
         self._invoice_service = invoice_service
+        self._part_repo = part_repo
 
     def create_repair_order(self, data: RepairOrderCreate) -> RepairOrder:
         vehicle = self._vehicle_repo.get(data.vehicle_id)
@@ -81,6 +90,7 @@ class RepairOrderService:
         repair_order.technician_notes = data.technician_notes
         repair_order.internal_notes = data.internal_notes
         repair_order.customer_notes = data.customer_notes
+        repair_order.assigned_technician = data.assigned_technician
         self._repair_order_repo.add(repair_order)
 
         if data.line_items:
@@ -232,6 +242,71 @@ class RepairOrderService:
 
     def list_signatures(self, repair_order_id: int) -> list[Signature]:
         return self._signature_repo.list_for_entity(EntityType.REPAIR_ORDER.value, repair_order_id)
+
+    def add_part_from_inventory(
+        self,
+        repair_order_id: int,
+        part_id: int,
+        quantity: float,
+        unit_price: float | None = None,
+        is_taxable: bool = True,
+    ) -> LineItem:
+        """Explicit dedicated action: atomically adds a single PART line item
+        linked to a real inventory Part AND decrements stock via one
+        InventoryAdjustment, in the same DB transaction. Deliberately bypasses
+        ``replace_line_items``'s full-replace-and-diff path -- diffing a
+        replaced list to infer "which rows are new parts, decrement those" is
+        exactly the fragile pattern this action avoids: one insert + one
+        adjustment, no diffing, no ambiguity, can't misfire on an edit that
+        merely changes an existing line's description.
+
+        No backorder support: selling more than `quantity_on_hand` is
+        rejected outright. A shop that wants to sell more than on hand must
+        first correct the count or receive a purchase order.
+        """
+        repair_order = self.get_repair_order(repair_order_id)
+        if repair_order.status == RepairOrderStatus.CANCELLED.value:
+            raise ConflictError("Cannot add parts to a cancelled repair order")
+
+        part = self._part_repo.get(part_id)
+        if part is None or not part.is_active:
+            raise NotFoundError(f"Active part {part_id} not found")
+
+        if quantity != int(quantity):
+            raise ValidationError("Part quantity must be a whole number")
+        quantity_int = int(quantity)
+
+        if part.quantity_on_hand < quantity_int:
+            raise ValidationError(
+                f"Insufficient stock for part {part.part_number}: "
+                f"{part.quantity_on_hand} on hand, {quantity_int} requested"
+            )
+
+        existing_items = self.list_line_items(repair_order_id)
+        next_sort_order = max((item.sort_order for item in existing_items), default=-1) + 1
+
+        line_item = LineItem(
+            entity_type=EntityType.REPAIR_ORDER.value,
+            entity_id=repair_order.id,
+            line_type=LineItemType.PART.value,
+            part_id=part.id,
+            part_number=part.part_number,
+            description=part.description,
+            quantity=quantity_int,
+            unit_price=unit_price if unit_price is not None else float(part.retail_price),
+            is_taxable=is_taxable,
+            warranty_text=part.warranty_text,
+            sort_order=next_sort_order,
+        )
+        self._line_item_repo.add(line_item)
+
+        self._part_repo.apply_adjustment(
+            part,
+            quantity_delta=-quantity_int,
+            reason=InventoryAdjustmentReason.SOLD_REPAIR_ORDER.value,
+            repair_order_id=repair_order.id,
+        )
+        return line_item
 
     def convert_to_invoice(
         self,

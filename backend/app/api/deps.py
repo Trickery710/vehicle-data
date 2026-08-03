@@ -12,22 +12,38 @@ from backend.app.config import Settings, get_settings
 from backend.app.db.session import get_db
 from backend.app.repositories.attachment_repository import AttachmentRepository
 from backend.app.repositories.customer_repository import CustomerRepository
+from backend.app.repositories.diagnostic_reading_repository import DiagnosticReadingRepository
+from backend.app.repositories.diagnostic_session_repository import DiagnosticSessionRepository
+from backend.app.repositories.diagnostic_trouble_code_repository import (
+    DiagnosticTroubleCodeRepository,
+)
 from backend.app.repositories.estimate_repository import EstimateRepository
 from backend.app.repositories.inspection_checklist_repository import InspectionChecklistRepository
 from backend.app.repositories.invoice_repository import InvoiceRepository
 from backend.app.repositories.line_item_repository import LineItemRepository
 from backend.app.repositories.number_sequence_repository import NumberSequenceRepository
+from backend.app.repositories.part_compatibility_repository import PartCompatibilityRepository
+from backend.app.repositories.part_repository import PartRepository
 from backend.app.repositories.payment_repository import PaymentRepository
+from backend.app.repositories.purchase_order_item_repository import PurchaseOrderItemRepository
+from backend.app.repositories.purchase_order_repository import PurchaseOrderRepository
 from backend.app.repositories.repair_order_repository import RepairOrderRepository
+from backend.app.repositories.report_repository import ReportRepository
 from backend.app.repositories.signature_repository import SignatureRepository
+from backend.app.repositories.supplier_repository import SupplierRepository
 from backend.app.repositories.timeline_repository import TimelineRepository
 from backend.app.repositories.vehicle_repository import VehicleRepository
 from backend.app.repositories.vin_decode_cache_repository import VinDecodeCacheRepository
 from backend.app.services.attachment_service import AttachmentService
 from backend.app.services.customer_service import CustomerService
+from backend.app.services.diagnostic_service import DiagnosticService
 from backend.app.services.estimate_service import EstimateService
 from backend.app.services.invoice_service import InvoiceService
+from backend.app.services.part_service import PartService
+from backend.app.services.purchase_order_service import PurchaseOrderService
 from backend.app.services.repair_order_service import RepairOrderService
+from backend.app.services.report_service import ReportService
+from backend.app.services.supplier_service import SupplierService
 from backend.app.services.vehicle_service import VehicleService
 from backend.app.services.vin_decode_service import VinDecodeService
 from backend.app.vin.vpic_client import VpicClient
@@ -94,6 +110,42 @@ def get_attachment_repository(db: DbSession) -> AttachmentRepository:
     return AttachmentRepository(db)
 
 
+def get_part_repository(db: DbSession) -> PartRepository:
+    return PartRepository(db)
+
+
+def get_part_compatibility_repository(db: DbSession) -> PartCompatibilityRepository:
+    return PartCompatibilityRepository(db)
+
+
+def get_supplier_repository(db: DbSession) -> SupplierRepository:
+    return SupplierRepository(db)
+
+
+def get_purchase_order_repository(db: DbSession) -> PurchaseOrderRepository:
+    return PurchaseOrderRepository(db)
+
+
+def get_purchase_order_item_repository(db: DbSession) -> PurchaseOrderItemRepository:
+    return PurchaseOrderItemRepository(db)
+
+
+def get_diagnostic_session_repository(db: DbSession) -> DiagnosticSessionRepository:
+    return DiagnosticSessionRepository(db)
+
+
+def get_diagnostic_trouble_code_repository(db: DbSession) -> DiagnosticTroubleCodeRepository:
+    return DiagnosticTroubleCodeRepository(db)
+
+
+def get_diagnostic_reading_repository(db: DbSession) -> DiagnosticReadingRepository:
+    return DiagnosticReadingRepository(db)
+
+
+def get_report_repository(db: DbSession) -> ReportRepository:
+    return ReportRepository(db)
+
+
 def get_vin_decode_service(
     cache_repo: Annotated[VinDecodeCacheRepository, Depends(get_vin_decode_cache_repository)],
     vpic_client: Annotated[VpicClient, Depends(get_vpic_client)],
@@ -150,6 +202,7 @@ def get_repair_order_service(
         NumberSequenceRepository, Depends(get_number_sequence_repository)
     ],
     invoice_service: Annotated[InvoiceService, Depends(get_invoice_service)],
+    part_repo: Annotated[PartRepository, Depends(get_part_repository)],
 ) -> RepairOrderService:
     return RepairOrderService(
         repair_order_repo,
@@ -161,6 +214,7 @@ def get_repair_order_service(
         timeline_repo,
         number_sequence_repo,
         invoice_service,
+        part_repo,
     )
 
 
@@ -184,9 +238,78 @@ def get_estimate_service(
     )
 
 
+def get_part_service(
+    part_repo: Annotated[PartRepository, Depends(get_part_repository)],
+    compatibility_repo: Annotated[
+        PartCompatibilityRepository, Depends(get_part_compatibility_repository)
+    ],
+) -> PartService:
+    return PartService(part_repo, compatibility_repo)
+
+
+def get_supplier_service(
+    supplier_repo: Annotated[SupplierRepository, Depends(get_supplier_repository)],
+) -> SupplierService:
+    return SupplierService(supplier_repo)
+
+
+def get_purchase_order_service(
+    purchase_order_repo: Annotated[PurchaseOrderRepository, Depends(get_purchase_order_repository)],
+    item_repo: Annotated[PurchaseOrderItemRepository, Depends(get_purchase_order_item_repository)],
+    part_repo: Annotated[PartRepository, Depends(get_part_repository)],
+    number_sequence_repo: Annotated[
+        NumberSequenceRepository, Depends(get_number_sequence_repository)
+    ],
+) -> PurchaseOrderService:
+    return PurchaseOrderService(purchase_order_repo, item_repo, part_repo, number_sequence_repo)
+
+
+def get_diagnostic_service(
+    session_repo: Annotated[
+        DiagnosticSessionRepository, Depends(get_diagnostic_session_repository)
+    ],
+    trouble_code_repo: Annotated[
+        DiagnosticTroubleCodeRepository, Depends(get_diagnostic_trouble_code_repository)
+    ],
+    reading_repo: Annotated[
+        DiagnosticReadingRepository, Depends(get_diagnostic_reading_repository)
+    ],
+    vehicle_repo: Annotated[VehicleRepository, Depends(get_vehicle_repository)],
+    timeline_repo: Annotated[TimelineRepository, Depends(get_timeline_repository)],
+) -> DiagnosticService:
+    return DiagnosticService(
+        session_repo, trouble_code_repo, reading_repo, vehicle_repo, timeline_repo
+    )
+
+
+def get_report_service(
+    report_repo: Annotated[ReportRepository, Depends(get_report_repository)],
+    vehicle_repo: Annotated[VehicleRepository, Depends(get_vehicle_repository)],
+    customer_repo: Annotated[CustomerRepository, Depends(get_customer_repository)],
+    repair_order_repo: Annotated[RepairOrderRepository, Depends(get_repair_order_repository)],
+    invoice_repo: Annotated[InvoiceRepository, Depends(get_invoice_repository)],
+    timeline_repo: Annotated[TimelineRepository, Depends(get_timeline_repository)],
+    invoice_service: Annotated[InvoiceService, Depends(get_invoice_service)],
+) -> ReportService:
+    return ReportService(
+        report_repo,
+        vehicle_repo,
+        customer_repo,
+        repair_order_repo,
+        invoice_repo,
+        timeline_repo,
+        invoice_service,
+    )
+
+
 CustomerServiceDep = Annotated[CustomerService, Depends(get_customer_service)]
 VehicleServiceDep = Annotated[VehicleService, Depends(get_vehicle_service)]
 EstimateServiceDep = Annotated[EstimateService, Depends(get_estimate_service)]
 RepairOrderServiceDep = Annotated[RepairOrderService, Depends(get_repair_order_service)]
 InvoiceServiceDep = Annotated[InvoiceService, Depends(get_invoice_service)]
 AttachmentServiceDep = Annotated[AttachmentService, Depends(get_attachment_service)]
+PartServiceDep = Annotated[PartService, Depends(get_part_service)]
+SupplierServiceDep = Annotated[SupplierService, Depends(get_supplier_service)]
+PurchaseOrderServiceDep = Annotated[PurchaseOrderService, Depends(get_purchase_order_service)]
+DiagnosticServiceDep = Annotated[DiagnosticService, Depends(get_diagnostic_service)]
+ReportServiceDep = Annotated[ReportService, Depends(get_report_service)]

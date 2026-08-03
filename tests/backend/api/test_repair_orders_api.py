@@ -115,3 +115,45 @@ def test_vehicle_scoped_repair_orders_list(client) -> None:
     resp = client.get(f"/api/v1/vehicles/{vehicle_id}/repair-orders")
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+def _create_part(client, quantity_on_hand: int = 5) -> int:
+    resp = client.post(
+        "/api/v1/parts",
+        json={
+            "part_number": "BRK-001",
+            "description": "Brake pads",
+            "purchase_cost": 20,
+            "retail_price": 45,
+            "initial_quantity_on_hand": quantity_on_hand,
+        },
+    )
+    return resp.json()["id"]
+
+
+def test_add_part_from_inventory_success(client) -> None:
+    vehicle_id = _create_vehicle(client)
+    ro_id = client.post("/api/v1/repair-orders", json={"vehicle_id": vehicle_id}).json()["id"]
+    part_id = _create_part(client, quantity_on_hand=5)
+
+    resp = client.post(
+        f"/api/v1/repair-orders/{ro_id}/parts", json={"part_id": part_id, "quantity": 2}
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["part_id"] == part_id
+    assert body["unit_price"] == 45.0
+
+    part = client.get(f"/api/v1/parts/{part_id}").json()
+    assert part["quantity_on_hand"] == 3
+
+
+def test_add_part_from_inventory_insufficient_stock_returns_422(client) -> None:
+    vehicle_id = _create_vehicle(client)
+    ro_id = client.post("/api/v1/repair-orders", json={"vehicle_id": vehicle_id}).json()["id"]
+    part_id = _create_part(client, quantity_on_hand=1)
+
+    resp = client.post(
+        f"/api/v1/repair-orders/{ro_id}/parts", json={"part_id": part_id, "quantity": 5}
+    )
+    assert resp.status_code == 422

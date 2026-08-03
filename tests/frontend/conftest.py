@@ -12,11 +12,30 @@ import pytest
 
 from frontend.mechanic_shop.models.attachment import Attachment
 from frontend.mechanic_shop.models.customer import Customer
+from frontend.mechanic_shop.models.diagnostic import (
+    DiagnosticReading,
+    DiagnosticSession,
+    DiagnosticTroubleCode,
+)
 from frontend.mechanic_shop.models.estimate import Estimate
 from frontend.mechanic_shop.models.invoice import Invoice, InvoiceTotals, Payment
 from frontend.mechanic_shop.models.line_item import LineItem
+from frontend.mechanic_shop.models.part import InventoryAdjustment, Part, PartCompatibility
+from frontend.mechanic_shop.models.purchase_order import PurchaseOrder
 from frontend.mechanic_shop.models.repair_order import InspectionChecklistItem, RepairOrder
+from frontend.mechanic_shop.models.report import (
+    CustomerHistoryReport,
+    InventoryReport,
+    LaborHoursReport,
+    PartsSoldReport,
+    ProfitReport,
+    RevenueReport,
+    SalesTaxReport,
+    TechnicianProductivityReport,
+    VehicleHistoryReport,
+)
 from frontend.mechanic_shop.models.signature import Signature
+from frontend.mechanic_shop.models.supplier import Supplier
 from frontend.mechanic_shop.models.vehicle import TimelineEvent, Vehicle, VinDecodeResult
 
 
@@ -215,6 +234,7 @@ class FakeRepairOrderApiClient:
         self.signatures: dict[int, list[Signature]] = {}
         self._next_id = 1
         self.convert_calls: list[int] = []
+        self.add_part_calls: list[tuple[int, int, float, float | None]] = []
 
     def list_repair_orders(
         self, status: str | None = None, query: str | None = None, limit: int = 50, offset: int = 0
@@ -290,6 +310,25 @@ class FakeRepairOrderApiClient:
             tax_rate=tax_rate,
             warranty_notes=warranty_notes,
         )
+
+    def add_part_from_inventory(
+        self,
+        repair_order_id: int,
+        part_id: int,
+        quantity: float,
+        unit_price: float | None = None,
+    ) -> LineItem:
+        self.add_part_calls.append((repair_order_id, part_id, quantity, unit_price))
+        item = LineItem(
+            id=len(self.line_items[repair_order_id]) + 1,
+            line_type="part",
+            description=f"Part {part_id}",
+            quantity=quantity,
+            unit_price=unit_price or 0,
+            part_id=part_id,
+        )
+        self.line_items.setdefault(repair_order_id, []).append(item)
+        return item
 
 
 class FakeInvoiceApiClient:
@@ -411,6 +450,277 @@ class FakeAttachmentApiClient:
         del self.attachments[attachment_id]
 
 
+class FakePartApiClient:
+    def __init__(self) -> None:
+        self.parts: dict[int, Part] = {}
+        self.adjustments: dict[int, list[InventoryAdjustment]] = {}
+        self._next_id = 1
+        self._next_adjustment_id = 1
+
+    def list_parts(
+        self,
+        query: str | None = None,
+        below_minimum_only: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[Part], int]:
+        items = list(self.parts.values())
+        if below_minimum_only:
+            items = [p for p in items if p.is_below_minimum]
+        if query:
+            q = query.lower()
+            items = [p for p in items if q in p.part_number.lower() or q in p.description.lower()]
+        return items, len(items)
+
+    def get_part(self, part_id: int) -> Part:
+        return self.parts[part_id]
+
+    def get_by_barcode(self, barcode: str) -> Part:
+        for part in self.parts.values():
+            if part.barcode == barcode:
+                return part
+        raise KeyError(barcode)
+
+    def create_part(self, part: Part, initial_quantity_on_hand: int = 0) -> Part:
+        new_part = replace(part, id=self._next_id, quantity_on_hand=initial_quantity_on_hand)
+        self.parts[self._next_id] = new_part
+        self.adjustments[self._next_id] = []
+        self._next_id += 1
+        return new_part
+
+    def update_part(self, part_id: int, part: Part) -> Part:
+        updated = replace(part, id=part_id, quantity_on_hand=self.parts[part_id].quantity_on_hand)
+        self.parts[part_id] = updated
+        return updated
+
+    def deactivate_part(self, part_id: int) -> Part:
+        part = replace(self.parts[part_id], is_active=False)
+        self.parts[part_id] = part
+        return part
+
+    def reactivate_part(self, part_id: int) -> Part:
+        part = replace(self.parts[part_id], is_active=True)
+        self.parts[part_id] = part
+        return part
+
+    def replace_compatibility(
+        self, part_id: int, compatibility: list[PartCompatibility]
+    ) -> list[PartCompatibility]:
+        updated = replace(self.parts[part_id], compatibility=compatibility)
+        self.parts[part_id] = updated
+        return compatibility
+
+    def record_manual_count_correction(
+        self, part_id: int, quantity_on_hand: int, notes: str | None = None
+    ) -> InventoryAdjustment:
+        part = self.parts[part_id]
+        delta = quantity_on_hand - part.quantity_on_hand
+        adjustment = InventoryAdjustment(
+            id=self._next_adjustment_id,
+            part_id=part_id,
+            quantity_delta=delta,
+            quantity_before=part.quantity_on_hand,
+            quantity_after=quantity_on_hand,
+            reason="manual_count_correction",
+            repair_order_id=None,
+            purchase_order_id=None,
+            notes=notes,
+            created_at=None,
+        )
+        self._next_adjustment_id += 1
+        self.parts[part_id] = replace(part, quantity_on_hand=quantity_on_hand)
+        self.adjustments.setdefault(part_id, []).append(adjustment)
+        return adjustment
+
+    def list_adjustments(self, part_id: int) -> list[InventoryAdjustment]:
+        return self.adjustments.get(part_id, [])
+
+
+class FakeSupplierApiClient:
+    def __init__(self) -> None:
+        self.suppliers: dict[int, Supplier] = {}
+        self.purchase_orders_by_supplier: dict[int, list[PurchaseOrder]] = {}
+        self._next_id = 1
+
+    def list_suppliers(
+        self, query: str | None = None, limit: int = 50, offset: int = 0
+    ) -> tuple[list[Supplier], int]:
+        items = list(self.suppliers.values())
+        if query:
+            q = query.lower()
+            items = [s for s in items if q in s.name.lower()]
+        return items, len(items)
+
+    def get_supplier(self, supplier_id: int) -> Supplier:
+        return self.suppliers[supplier_id]
+
+    def create_supplier(self, supplier: Supplier) -> Supplier:
+        new_supplier = replace(supplier, id=self._next_id)
+        self.suppliers[self._next_id] = new_supplier
+        self._next_id += 1
+        return new_supplier
+
+    def update_supplier(self, supplier_id: int, supplier: Supplier) -> Supplier:
+        updated = replace(supplier, id=supplier_id)
+        self.suppliers[supplier_id] = updated
+        return updated
+
+    def deactivate_supplier(self, supplier_id: int) -> Supplier:
+        supplier = replace(self.suppliers[supplier_id], is_active=False)
+        self.suppliers[supplier_id] = supplier
+        return supplier
+
+    def list_purchase_orders(self, supplier_id: int) -> list[PurchaseOrder]:
+        return self.purchase_orders_by_supplier.get(supplier_id, [])
+
+
+class FakePurchaseOrderApiClient:
+    def __init__(self) -> None:
+        self.purchase_orders: dict[int, PurchaseOrder] = {}
+        self._next_id = 1
+        self.receive_calls: list[tuple[int, list[dict]]] = []
+        self.return_calls: list[tuple[int, int, int]] = []
+
+    def list_purchase_orders(
+        self, status: str | None = None, query: str | None = None, limit: int = 50, offset: int = 0
+    ) -> tuple[list[PurchaseOrder], int]:
+        items = list(self.purchase_orders.values())
+        if status:
+            items = [po for po in items if po.status == status]
+        return items, len(items)
+
+    def get_purchase_order(self, purchase_order_id: int) -> PurchaseOrder:
+        return self.purchase_orders[purchase_order_id]
+
+    def create_purchase_order(self, purchase_order: PurchaseOrder) -> PurchaseOrder:
+        new_po = replace(
+            purchase_order, id=self._next_id, purchase_order_number=f"PO-{self._next_id:06d}"
+        )
+        self.purchase_orders[self._next_id] = new_po
+        self._next_id += 1
+        return new_po
+
+    def mark_ordered(self, purchase_order_id: int) -> PurchaseOrder:
+        updated = replace(self.purchase_orders[purchase_order_id], status="ordered")
+        self.purchase_orders[purchase_order_id] = updated
+        return updated
+
+    def receive_items(self, purchase_order_id: int, receipts: list[dict]) -> PurchaseOrder:
+        self.receive_calls.append((purchase_order_id, receipts))
+        updated = replace(self.purchase_orders[purchase_order_id], status="received")
+        self.purchase_orders[purchase_order_id] = updated
+        return updated
+
+    def record_return(
+        self, purchase_order_id: int, part_id: int, quantity: int, notes: str | None = None
+    ) -> InventoryAdjustment:
+        self.return_calls.append((purchase_order_id, part_id, quantity))
+        return InventoryAdjustment(
+            id=1,
+            part_id=part_id,
+            quantity_delta=-quantity,
+            quantity_before=quantity,
+            quantity_after=0,
+            reason="returned_to_supplier",
+            repair_order_id=None,
+            purchase_order_id=purchase_order_id,
+            notes=notes,
+            created_at=None,
+        )
+
+    def cancel_purchase_order(self, purchase_order_id: int) -> PurchaseOrder:
+        updated = replace(self.purchase_orders[purchase_order_id], status="cancelled")
+        self.purchase_orders[purchase_order_id] = updated
+        return updated
+
+
+class FakeDiagnosticApiClient:
+    def __init__(self) -> None:
+        self.sessions: dict[int, DiagnosticSession] = {}
+        self._next_id = 1
+
+    def list_for_vehicle(self, vehicle_id: int) -> list[DiagnosticSession]:
+        return [s for s in self.sessions.values() if s.vehicle_id == vehicle_id]
+
+    def get_session(self, session_id: int) -> DiagnosticSession:
+        return self.sessions[session_id]
+
+    def create_session(self, session: DiagnosticSession) -> DiagnosticSession:
+        new_session = replace(session, id=self._next_id)
+        self.sessions[self._next_id] = new_session
+        self._next_id += 1
+        return new_session
+
+    def update_session(self, session_id: int, session: DiagnosticSession) -> DiagnosticSession:
+        updated = replace(session, id=session_id)
+        self.sessions[session_id] = updated
+        return updated
+
+    def replace_trouble_codes(
+        self, session_id: int, codes: list[DiagnosticTroubleCode]
+    ) -> list[DiagnosticTroubleCode]:
+        updated = replace(self.sessions[session_id], trouble_codes=codes)
+        self.sessions[session_id] = updated
+        return codes
+
+    def replace_readings(
+        self, session_id: int, readings: list[DiagnosticReading]
+    ) -> list[DiagnosticReading]:
+        updated = replace(self.sessions[session_id], readings=readings)
+        self.sessions[session_id] = updated
+        return readings
+
+
+class FakeReportApiClient:
+    def __init__(self) -> None:
+        self.export_calls: list[tuple[str, str]] = []
+        self.export_bytes = b"fake-report-bytes"
+
+    def revenue(self, start_date, end_date, group_by=None) -> RevenueReport:
+        return RevenueReport(invoice_count=1, subtotal=100, tax_amount=10, grand_total=110)
+
+    def sales_tax(self, start_date, end_date, group_by=None) -> SalesTaxReport:
+        return SalesTaxReport(taxable_subtotal=100, tax_collected=10)
+
+    def profit(self, start_date, end_date, group_by=None) -> ProfitReport:
+        return ProfitReport(revenue=100, cogs=40, gross_profit=60)
+
+    def labor_hours(self, start_date, end_date, technician=None) -> LaborHoursReport:
+        return LaborHoursReport()
+
+    def parts_sold(self, start_date, end_date) -> PartsSoldReport:
+        return PartsSoldReport()
+
+    def technician_productivity(self, start_date, end_date) -> TechnicianProductivityReport:
+        return TechnicianProductivityReport()
+
+    def inventory(self, below_minimum_only: bool = False) -> InventoryReport:
+        return InventoryReport(below_minimum_only=below_minimum_only)
+
+    def vehicle_history(self, vehicle_id: int) -> VehicleHistoryReport:
+        return VehicleHistoryReport(
+            vehicle_id=vehicle_id,
+            vehicle_display_name="Test Vehicle",
+            lifetime_billed=0,
+            lifetime_paid=0,
+        )
+
+    def customer_history(self, customer_id: int) -> CustomerHistoryReport:
+        return CustomerHistoryReport(
+            customer_id=customer_id,
+            customer_display_name="Test Customer",
+            lifetime_billed=0,
+            lifetime_paid=0,
+        )
+
+    def export_report(
+        self, report_path: str, fmt: str, start_date=None, end_date=None, **extra_params
+    ) -> tuple[bytes, str]:
+        self.export_calls.append((report_path, fmt))
+        content_type = "text/csv" if fmt == "csv" else "application/pdf"
+        return self.export_bytes, content_type
+
+
 @pytest.fixture()
 def fake_customer_client() -> FakeCustomerApiClient:
     return FakeCustomerApiClient()
@@ -439,3 +749,28 @@ def fake_invoice_client() -> FakeInvoiceApiClient:
 @pytest.fixture()
 def fake_attachment_client() -> FakeAttachmentApiClient:
     return FakeAttachmentApiClient()
+
+
+@pytest.fixture()
+def fake_part_client() -> FakePartApiClient:
+    return FakePartApiClient()
+
+
+@pytest.fixture()
+def fake_supplier_client() -> FakeSupplierApiClient:
+    return FakeSupplierApiClient()
+
+
+@pytest.fixture()
+def fake_purchase_order_client() -> FakePurchaseOrderApiClient:
+    return FakePurchaseOrderApiClient()
+
+
+@pytest.fixture()
+def fake_diagnostic_client() -> FakeDiagnosticApiClient:
+    return FakeDiagnosticApiClient()
+
+
+@pytest.fixture()
+def fake_report_client() -> FakeReportApiClient:
+    return FakeReportApiClient()

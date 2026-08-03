@@ -12,6 +12,7 @@ from backend.app.schemas.line_item import LineItemCreate, LineItemRead
 from backend.app.schemas.repair_order import (
     InspectionChecklistItemCreate,
     InspectionChecklistItemRead,
+    PartLineItemAddRequest,
     RepairOrderConvertToInvoiceRequest,
     RepairOrderCreate,
     RepairOrderRead,
@@ -108,6 +109,20 @@ def replace_checklist_items(
     ]
     updated = service.replace_checklist_items(repair_order_id, items)
     return [InspectionChecklistItemRead.model_validate(ci) for ci in updated]
+
+
+@router.post("/{repair_order_id}/parts", response_model=LineItemRead, status_code=201)
+def add_part_from_inventory(
+    repair_order_id: int, data: PartLineItemAddRequest, service: RepairOrderServiceDep
+) -> LineItemRead:
+    line_item = service.add_part_from_inventory(
+        repair_order_id,
+        part_id=data.part_id,
+        quantity=data.quantity,
+        unit_price=data.unit_price,
+        is_taxable=data.is_taxable,
+    )
+    return LineItemRead.model_validate(line_item)
 
 
 @router.post("/{repair_order_id}/signatures", response_model=SignatureRead, status_code=201)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -18,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from frontend.mechanic_shop.api_client.protocols import ReportApiClientProtocol
 from frontend.mechanic_shop.viewmodels.customer_detail_viewmodel import CustomerDetailViewModel
 from frontend.mechanic_shop.views.widgets.phone_number_editor import PhoneNumberEditor
 from shared.mechanic_shop_shared.enums import ContactMethod
@@ -29,9 +31,12 @@ class CustomerDetailView(QWidget):
     vehicle_selected = Signal(int)
     add_vehicle_requested = Signal(int)
 
-    def __init__(self, viewmodel: CustomerDetailViewModel) -> None:
+    def __init__(
+        self, viewmodel: CustomerDetailViewModel, report_client: ReportApiClientProtocol
+    ) -> None:
         super().__init__()
         self.viewmodel = viewmodel
+        self._report_client = report_client
 
         layout = QVBoxLayout(self)
 
@@ -94,6 +99,15 @@ class CustomerDetailView(QWidget):
         )
         layout.addWidget(add_vehicle_button)
         self._add_vehicle_button = add_vehicle_button
+
+        export_row = QHBoxLayout()
+        export_row.addStretch(1)
+        export_button = QPushButton("Export History Report...")
+        export_button.setEnabled(not viewmodel.is_new)
+        export_button.clicked.connect(self._on_export_history_clicked)
+        self._export_button = export_button
+        export_row.addWidget(export_button)
+        layout.addLayout(export_row)
 
         button_row = QHBoxLayout()
         button_row.addStretch(1)
@@ -160,7 +174,32 @@ class CustomerDetailView(QWidget):
 
     def _on_saved(self, customer_id: int) -> None:
         self._add_vehicle_button.setEnabled(True)
+        self._export_button.setEnabled(True)
         self.saved.emit(customer_id)
+
+    def _on_export_history_clicked(self) -> None:
+        customer_id = self.viewmodel.customer_id
+        if customer_id is None:
+            return
+        file_path, _filter = QFileDialog.getSaveFileName(
+            self, "Export Customer History", f"customer_{customer_id}_history.pdf"
+        )
+        if not file_path:
+            return
+        fmt = "csv" if file_path.lower().endswith(".csv") else "pdf"
+
+        def _do() -> bytes:
+            content, _content_type = self._report_client.export_report(
+                f"customer-history/{customer_id}", fmt
+            )
+            return content
+
+        def _on_success(content: bytes) -> None:
+            with open(file_path, "wb") as f:
+                f.write(content)
+            QMessageBox.information(self, "Export Complete", f"Report saved to:\n{file_path}")
+
+        self.viewmodel.run_in_background(_do, on_success=_on_success)
 
     def _on_error(self, message: str) -> None:
         QMessageBox.warning(self, "Error", message)

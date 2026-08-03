@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from backend.app.core.exceptions import NotFoundError
+from backend.app.core.exceptions import ConflictError, NotFoundError, ValidationError
 from backend.app.models.customer import Customer
+from backend.app.models.part import Part
 from backend.app.models.vehicle import Vehicle
 from backend.app.repositories.customer_repository import CustomerRepository
 from backend.app.repositories.estimate_repository import EstimateRepository
@@ -13,6 +14,7 @@ from backend.app.repositories.inspection_checklist_repository import InspectionC
 from backend.app.repositories.invoice_repository import InvoiceRepository
 from backend.app.repositories.line_item_repository import LineItemRepository
 from backend.app.repositories.number_sequence_repository import NumberSequenceRepository
+from backend.app.repositories.part_repository import PartRepository
 from backend.app.repositories.payment_repository import PaymentRepository
 from backend.app.repositories.repair_order_repository import RepairOrderRepository
 from backend.app.repositories.signature_repository import SignatureRepository
@@ -50,7 +52,22 @@ def repair_order_service(db, invoice_service) -> RepairOrderService:
         TimelineRepository(db),
         NumberSequenceRepository(db),
         invoice_service,
+        PartRepository(db),
     )
+
+
+@pytest.fixture()
+def existing_part(db) -> Part:
+    part = Part(
+        part_number="BRK-001",
+        description="Brake pads",
+        purchase_cost=20,
+        retail_price=45,
+        quantity_on_hand=5,
+    )
+    db.add(part)
+    db.flush()
+    return part
 
 
 @pytest.fixture()
@@ -164,3 +181,96 @@ def test_convert_to_invoice_copies_line_items(repair_order_service, existing_veh
         EntityType.INVOICE.value, invoice.id
     )
     assert len(invoice_items) == 1
+
+
+def test_add_part_from_inventory_happy_path(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    line_item = repair_order_service.add_part_from_inventory(ro.id, existing_part.id, quantity=2)
+
+    assert line_item.line_type == LineItemType.PART.value
+    assert line_item.part_id == existing_part.id
+    assert line_item.part_number == "BRK-001"
+    assert line_item.unit_price == 45
+    assert existing_part.quantity_on_hand == 3
+
+    line_items = repair_order_service.list_line_items(ro.id)
+    assert len(line_items) == 1
+
+
+def test_add_part_from_inventory_custom_unit_price(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    line_item = repair_order_service.add_part_from_inventory(
+        ro.id, existing_part.id, quantity=1, unit_price=39.99
+    )
+    assert float(line_item.unit_price) == 39.99
+
+
+def test_add_part_from_inventory_insufficient_stock_raises(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    with pytest.raises(ValidationError):
+        repair_order_service.add_part_from_inventory(ro.id, existing_part.id, quantity=999)
+    assert existing_part.quantity_on_hand == 5
+
+
+def test_add_part_from_inventory_non_integer_quantity_raises(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    with pytest.raises(ValidationError):
+        repair_order_service.add_part_from_inventory(ro.id, existing_part.id, quantity=1.5)
+
+
+def test_add_part_from_inventory_unknown_part_raises(
+    repair_order_service, existing_vehicle
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    with pytest.raises(NotFoundError):
+        repair_order_service.add_part_from_inventory(ro.id, 999, quantity=1)
+
+
+def test_add_part_from_inventory_rejects_cancelled_repair_order(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    repair_order_service.cancel_repair_order(ro.id)
+    with pytest.raises(ConflictError):
+        repair_order_service.add_part_from_inventory(ro.id, existing_part.id, quantity=1)
+
+
+def test_convert_to_invoice_does_not_double_decrement_stock(
+    repair_order_service, existing_vehicle, existing_part
+) -> None:
+    """Regression test: converting an RO to an invoice copies line items but
+    must NOT write a second inventory adjustment -- stock is decremented
+    exactly once, when the part is added to the repair order."""
+    from shared.mechanic_shop_shared.enums import EntityType, InventoryAdjustmentReason
+
+    ro = repair_order_service.create_repair_order(RepairOrderCreate(vehicle_id=existing_vehicle.id))
+    repair_order_service.add_part_from_inventory(ro.id, existing_part.id, quantity=2)
+    assert existing_part.quantity_on_hand == 3
+
+    invoice = repair_order_service.convert_to_invoice(ro.id, tax_rate=8.0)
+
+    assert existing_part.quantity_on_hand == 3, "stock must not change on conversion"
+
+    part_repo = repair_order_service._part_repo
+    reloaded_part = part_repo.get_with_adjustments(existing_part.id)
+    sold_adjustments = [
+        a
+        for a in reloaded_part.adjustments
+        if a.reason == InventoryAdjustmentReason.SOLD_REPAIR_ORDER.value
+    ]
+    assert len(sold_adjustments) == 1
+
+    invoice_items = repair_order_service._line_item_repo.list_for_entity(
+        EntityType.INVOICE.value, invoice.id
+    )
+    part_line_items = [li for li in invoice_items if li.line_type == LineItemType.PART.value]
+    assert len(part_line_items) == 1
+    assert part_line_items[0].part_id == existing_part.id

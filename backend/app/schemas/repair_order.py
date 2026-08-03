@@ -36,6 +36,7 @@ class RepairOrderCreate(BaseModel):
     technician_notes: str | None = None
     internal_notes: str | None = None
     customer_notes: str | None = None
+    assigned_technician: str | None = None
     line_items: list[LineItemCreate] = []
     checklist_items: list[InspectionChecklistItemCreate] = []
 
@@ -47,6 +48,7 @@ class RepairOrderUpdate(BaseModel):
     technician_notes: str | None = None
     internal_notes: str | None = None
     customer_notes: str | None = None
+    assigned_technician: str | None = None
 
 
 class RepairOrderStatusUpdate(BaseModel):
@@ -57,6 +59,13 @@ class RepairOrderConvertToInvoiceRequest(BaseModel):
     tax_rate: float = Field(default=0, ge=0, le=100)
     warranty_notes: str | None = None
     due_date: date | None = None
+
+
+class PartLineItemAddRequest(BaseModel):
+    part_id: int
+    quantity: float = Field(gt=0)
+    unit_price: float | None = None
+    is_taxable: bool = True
 
 
 class RepairOrderRead(BaseModel):
@@ -74,6 +83,7 @@ class RepairOrderRead(BaseModel):
     technician_notes: str | None
     internal_notes: str | None
     customer_notes: str | None
+    assigned_technician: str | None
     started_at: datetime | None
     completed_at: datetime | None
     delivered_at: datetime | None

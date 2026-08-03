@@ -59,6 +59,7 @@ class LineItemRepository(BaseRepository[LineItem]):
                 unit_price=item.unit_price,
                 is_taxable=item.is_taxable,
                 part_number=item.part_number,
+                part_id=item.part_id,
                 warranty_text=item.warranty_text,
                 sort_order=item.sort_order,
             )

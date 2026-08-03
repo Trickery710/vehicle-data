@@ -7,6 +7,7 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QComboBox,
+    QDialog,
     QFormLayout,
     QHBoxLayout,
     QInputDialog,
@@ -20,7 +21,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from frontend.mechanic_shop.api_client.protocols import AttachmentApiClientProtocol
+from frontend.mechanic_shop.api_client.protocols import (
+    AttachmentApiClientProtocol,
+    PartApiClientProtocol,
+)
 from frontend.mechanic_shop.models.signature import Signature
 from frontend.mechanic_shop.viewmodels.repair_order_detail_viewmodel import (
     RepairOrderDetailViewModel,
@@ -30,6 +34,7 @@ from frontend.mechanic_shop.views.widgets.inspection_checklist_editor import (
     InspectionChecklistEditor,
 )
 from frontend.mechanic_shop.views.widgets.line_item_editor import LineItemEditor
+from frontend.mechanic_shop.views.widgets.part_picker_dialog import PartPickerDialog
 from shared.mechanic_shop_shared.enums import EntityType, RepairOrderStatus, SignerRole
 
 
@@ -39,10 +44,14 @@ class RepairOrderDetailView(QWidget):
     converted = Signal(int)  # emits the new invoice id
 
     def __init__(
-        self, viewmodel: RepairOrderDetailViewModel, attachment_client: AttachmentApiClientProtocol
+        self,
+        viewmodel: RepairOrderDetailViewModel,
+        attachment_client: AttachmentApiClientProtocol,
+        part_client: PartApiClientProtocol,
     ) -> None:
         super().__init__()
         self.viewmodel = viewmodel
+        self._part_client = part_client
 
         layout = QVBoxLayout(self)
 
@@ -93,6 +102,11 @@ class RepairOrderDetailView(QWidget):
         self._line_item_editor = LineItemEditor()
         self._line_item_editor.setEnabled(not viewmodel.is_new)
         layout.addWidget(self._line_item_editor)
+
+        self._add_part_button = QPushButton("Add Part From Inventory...")
+        self._add_part_button.clicked.connect(self._on_add_part_from_inventory_clicked)
+        self._add_part_button.setEnabled(not viewmodel.is_new)
+        layout.addWidget(self._add_part_button)
 
         layout.addWidget(QLabel("Inspection Checklist"))
         self._checklist_editor = InspectionChecklistEditor()
@@ -162,6 +176,7 @@ class RepairOrderDetailView(QWidget):
         is_new = self.viewmodel.is_new
         self._status_combo.setEnabled(not is_new)
         self._line_item_editor.setEnabled(not is_new)
+        self._add_part_button.setEnabled(not is_new)
         self._checklist_editor.setEnabled(not is_new)
         self._attachment_gallery.setEnabled(not is_new)
         self._add_signature_button.setEnabled(not is_new)
@@ -202,6 +217,15 @@ class RepairOrderDetailView(QWidget):
 
     def _on_line_items_edited(self) -> None:
         self.viewmodel.replace_line_items(self._line_item_editor.get_line_items())
+
+    def _on_add_part_from_inventory_clicked(self) -> None:
+        dialog = PartPickerDialog(self._part_client, self.viewmodel.run_in_background, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        part = dialog.selected_part()
+        if part is None or part.id is None:
+            return
+        self.viewmodel.add_part_from_inventory(part.id, dialog.selected_quantity())
 
     def _on_checklist_edited(self) -> None:
         self.viewmodel.replace_checklist_items(self._checklist_editor.get_checklist_items())

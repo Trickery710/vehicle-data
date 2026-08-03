@@ -17,6 +17,7 @@ def build_line_items(data: list[LineItemCreate]) -> list[LineItem]:
             unit_price=li.unit_price,
             is_taxable=li.is_taxable,
             part_number=li.part_number,
+            part_id=li.part_id,
             warranty_text=li.warranty_text,
             sort_order=li.sort_order,
         )

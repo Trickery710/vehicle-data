@@ -6,7 +6,7 @@ multiple technicians later. Linux-first (Ubuntu 24.04+), no Electron.
 **Stack:** FastAPI + SQLAlchemy + SQLite backend (run as a local HTTP server), PySide6
 desktop frontend (MVVM), Alembic migrations.
 
-## Status: Phase 2 complete
+## Status: Phase 3 complete
 
 **Phase 1** -- Database foundation, customer management, vehicle management:
 - Database foundation (customers, vehicles, phone numbers, mileage history, VIN decode
@@ -31,9 +31,50 @@ desktop frontend (MVVM), Alembic migrations.
   dark/light theming
 - 190 automated tests (165 backend, 25 frontend), all passing; `mypy` and `ruff` clean
 
+**Phase 3** -- Parts inventory, suppliers, diagnostics, reports:
+- Parts: full catalog (OEM/aftermarket numbers, barcode, manufacturer, supplier, cost/
+  retail price, core charge, minimum stock, shelf location, warranty), vehicle-fitment
+  compatibility list, camera-based barcode scanning (webcam live decode with a manual-
+  entry fallback), full inventory audit trail (`InventoryAdjustment` ledger -- every
+  stock movement is logged and undeletable) -- own top-level nav tab
+- Suppliers: contact info, account number, linked purchase-order history -- own
+  top-level nav tab
+- Purchase orders: create with line items against real inventory parts, mark ordered,
+  receive (full or partial, per line), record returns to supplier, cancel (guarded once
+  anything's been received) -- own top-level nav tab, also reachable per-supplier
+- "Add Part From Inventory" on a repair order: one dedicated action that atomically adds
+  a part line item and decrements stock (no double-decrement on later conversion to an
+  invoice)
+- Diagnostics: trouble codes (OBD-II/manufacturer, freeze-frame notes, status), a single
+  flexible readings table (fuel trim/compression/leak-down/oil pressure/transmission
+  pressure/battery test/charging system/injector balance/relative compression/smoke
+  test), scan-report/screenshot/oscilloscope-capture file attachments -- reachable only
+  from the vehicle they belong to (no top-level tab)
+- Reports: revenue, sales tax, profit (with COGS from linked inventory parts), labor
+  hours, parts sold, technician productivity, inventory, vehicle history, customer
+  history -- monthly breakdowns via a `group_by` toggle, not separate report types;
+  PDF and CSV export for every report (Excel deferred) -- own top-level nav tab, plus a
+  one-click "Export History Report" button on customer/vehicle detail pages
+- Repair orders gained a free-text `assigned_technician` field (supports the Technician
+  Productivity report; full user accounts/permissions remain a later Settings phase)
+- 335 automated tests (283 backend, 52 frontend), all passing; `mypy` and `ruff` clean
+
 See `/home/casey/.claude/plans/shimmering-yawning-reddy.md` (or ask Claude) for the full
-architecture writeup. Phase 3 (parts inventory, diagnostics, reports) and Phase 4
-(OBDPlus integration) are not yet built.
+architecture writeup. Phase 4 (OBDPlus integration) is not yet built.
+
+### Camera-based barcode scanning -- one-time system setup
+
+Scanning a barcode with a webcam (Part detail view -> "Scan Barcode") needs the
+`libzbar0` system library on Ubuntu:
+
+```bash
+sudo apt install libzbar0
+```
+
+`opencv-python-headless` (camera capture) and `pyzbar` (barcode decoding) are already
+declared as Python dependencies and install automatically with `pip install -e ".[dev]"`
+below -- `libzbar0` is the one piece `pip` can't install for you. Without a webcam, the
+scanner dialog still works via its manual barcode-entry fallback.
 
 ## Why a local HTTP server for a single-user desktop app?
 
@@ -54,12 +95,14 @@ work_done/
 │   ├── services/                  #   business logic
 │   ├── vin/                       #   offline VIN decoder + NHTSA vPIC client
 │   ├── pdf/                       #   ReportLab invoice PDF rendering
+│   ├── reports/                   #   generic CSV/PDF report export (Phase 3)
 │   └── api/v1/                    #   FastAPI routers
 ├── frontend/mechanic_shop/        # PySide6, MVVM:
 │   ├── api_client/                #   typed HTTP client (talks only to the local API)
 │   ├── models/                    #   client-side dataclasses
 │   ├── viewmodels/                #   QObject-based ViewModels, background-thread safe
 │   ├── views/                     #   QWidget-based Views
+│   ├── barcode/                   #   pure barcode-decode function (Phase 3)
 │   └── server_manager.py          #   spawns/health-checks/stops the backend subprocess
 ├── alembic/                       # migrations (real migrations, not create_all())
 └── tests/{backend,frontend}/

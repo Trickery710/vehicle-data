@@ -5,12 +5,14 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from backend.app.api.deps import (
+    DiagnosticServiceDep,
     EstimateServiceDep,
     InvoiceServiceDep,
     RepairOrderServiceDep,
     VehicleServiceDep,
 )
 from backend.app.schemas.common import PaginatedResponse
+from backend.app.schemas.diagnostic import DiagnosticSessionRead
 from backend.app.schemas.estimate import EstimateRead
 from backend.app.schemas.invoice import InvoiceRead
 from backend.app.schemas.mileage import MileageRecordCreate, TimelineEventRead
@@ -107,3 +109,10 @@ def list_vehicle_repair_orders(
 @router.get("/{vehicle_id}/invoices", response_model=list[InvoiceRead])
 def list_vehicle_invoices(vehicle_id: int, service: InvoiceServiceDep) -> list[InvoiceRead]:
     return [InvoiceRead.model_validate(inv) for inv in service.list_for_vehicle(vehicle_id)]
+
+
+@router.get("/{vehicle_id}/diagnostic-sessions", response_model=list[DiagnosticSessionRead])
+def list_vehicle_diagnostic_sessions(
+    vehicle_id: int, service: DiagnosticServiceDep
+) -> list[DiagnosticSessionRead]:
+    return [DiagnosticSessionRead.model_validate(s) for s in service.list_for_vehicle(vehicle_id)]

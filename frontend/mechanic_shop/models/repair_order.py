@@ -47,6 +47,7 @@ class RepairOrder:
     technician_notes: str | None = None
     internal_notes: str | None = None
     customer_notes: str | None = None
+    assigned_technician: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     delivered_at: datetime | None = None
@@ -74,6 +75,7 @@ class RepairOrder:
             technician_notes=data.get("technician_notes"),
             internal_notes=data.get("internal_notes"),
             customer_notes=data.get("customer_notes"),
+            assigned_technician=data.get("assigned_technician"),
             started_at=_parse_datetime(data.get("started_at")),
             completed_at=_parse_datetime(data.get("completed_at")),
             delivered_at=_parse_datetime(data.get("delivered_at")),
@@ -95,6 +97,7 @@ class RepairOrder:
             "technician_notes": self.technician_notes,
             "internal_notes": self.internal_notes,
             "customer_notes": self.customer_notes,
+            "assigned_technician": self.assigned_technician,
             "line_items": [],
             "checklist_items": [],
         }
@@ -107,6 +110,7 @@ class RepairOrder:
             "technician_notes": self.technician_notes,
             "internal_notes": self.internal_notes,
             "customer_notes": self.customer_notes,
+            "assigned_technician": self.assigned_technician,
         }
 
 

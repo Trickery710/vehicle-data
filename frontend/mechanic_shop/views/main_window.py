@@ -1,10 +1,11 @@
 """Main application window: navigation shell over Dashboard/Customers/
-Vehicles/Repair Orders/Invoices.
+Vehicles/Repair Orders/Invoices/Parts/Suppliers/Purchase Orders/Reports.
 
-Estimates stay reachable only via the vehicle they belong to (short-lived
-pre-work documents); Repair Orders and Invoices get their own top-level nav
-tabs (shop-wide, filterable by status) *and* remain reachable from a
-vehicle's detail page.
+Estimates and Diagnostic Sessions stay reachable only via the vehicle they
+belong to (short-lived/scoped documents with no shop-wide browse value);
+Repair Orders, Invoices, Parts, Suppliers, and Purchase Orders get their own
+top-level nav tabs (shop-wide, filterable) *and* remain reachable from a
+vehicle's/supplier's detail page where applicable.
 """
 
 from __future__ import annotations
@@ -23,47 +24,90 @@ from PySide6.QtWidgets import (
 from frontend.mechanic_shop.api_client.protocols import (
     AttachmentApiClientProtocol,
     CustomerApiClientProtocol,
+    DiagnosticApiClientProtocol,
     EstimateApiClientProtocol,
     InvoiceApiClientProtocol,
+    PartApiClientProtocol,
+    PurchaseOrderApiClientProtocol,
     RepairOrderApiClientProtocol,
+    ReportApiClientProtocol,
+    SupplierApiClientProtocol,
     VehicleApiClientProtocol,
 )
 from frontend.mechanic_shop.theming.theme_manager import ThemeManager
 from frontend.mechanic_shop.viewmodels.customer_detail_viewmodel import CustomerDetailViewModel
 from frontend.mechanic_shop.viewmodels.customer_list_viewmodel import CustomerListViewModel
 from frontend.mechanic_shop.viewmodels.dashboard_viewmodel import DashboardViewModel
+from frontend.mechanic_shop.viewmodels.diagnostic_session_detail_viewmodel import (
+    DiagnosticSessionDetailViewModel,
+)
 from frontend.mechanic_shop.viewmodels.estimate_detail_viewmodel import EstimateDetailViewModel
 from frontend.mechanic_shop.viewmodels.invoice_detail_viewmodel import InvoiceDetailViewModel
 from frontend.mechanic_shop.viewmodels.invoice_list_viewmodel import InvoiceListViewModel
+from frontend.mechanic_shop.viewmodels.part_detail_viewmodel import PartDetailViewModel
+from frontend.mechanic_shop.viewmodels.part_list_viewmodel import PartListViewModel
+from frontend.mechanic_shop.viewmodels.purchase_order_detail_viewmodel import (
+    PurchaseOrderDetailViewModel,
+)
+from frontend.mechanic_shop.viewmodels.purchase_order_list_viewmodel import (
+    PurchaseOrderListViewModel,
+)
 from frontend.mechanic_shop.viewmodels.repair_order_detail_viewmodel import (
     RepairOrderDetailViewModel,
 )
 from frontend.mechanic_shop.viewmodels.repair_order_list_viewmodel import (
     RepairOrderListViewModel,
 )
+from frontend.mechanic_shop.viewmodels.report_viewmodel import ReportViewModel
+from frontend.mechanic_shop.viewmodels.supplier_detail_viewmodel import SupplierDetailViewModel
+from frontend.mechanic_shop.viewmodels.supplier_list_viewmodel import SupplierListViewModel
 from frontend.mechanic_shop.viewmodels.vehicle_detail_viewmodel import VehicleDetailViewModel
 from frontend.mechanic_shop.viewmodels.vehicle_list_viewmodel import VehicleListViewModel
 from frontend.mechanic_shop.views.customer_detail_view import CustomerDetailView
 from frontend.mechanic_shop.views.customer_list_view import CustomerListView
 from frontend.mechanic_shop.views.dashboard_view import DashboardView
+from frontend.mechanic_shop.views.diagnostic_session_detail_view import (
+    DiagnosticSessionDetailView,
+)
 from frontend.mechanic_shop.views.estimate_detail_view import EstimateDetailView
 from frontend.mechanic_shop.views.invoice_detail_view import InvoiceDetailView
 from frontend.mechanic_shop.views.invoice_list_view import InvoiceListView
+from frontend.mechanic_shop.views.part_detail_view import PartDetailView
+from frontend.mechanic_shop.views.part_list_view import PartListView
+from frontend.mechanic_shop.views.purchase_order_detail_view import PurchaseOrderDetailView
+from frontend.mechanic_shop.views.purchase_order_list_view import PurchaseOrderListView
 from frontend.mechanic_shop.views.repair_order_detail_view import RepairOrderDetailView
 from frontend.mechanic_shop.views.repair_order_list_view import RepairOrderListView
+from frontend.mechanic_shop.views.report_view import ReportView
+from frontend.mechanic_shop.views.supplier_detail_view import SupplierDetailView
+from frontend.mechanic_shop.views.supplier_list_view import SupplierListView
 from frontend.mechanic_shop.views.vehicle_detail_view import VehicleDetailView
 from frontend.mechanic_shop.views.vehicle_list_view import VehicleListView
 from shared.mechanic_shop_shared.constants import APP_NAME
 
-_NAV_LABELS = ["Dashboard", "Customers", "Vehicles", "Repair Orders", "Invoices"]
+_NAV_LABELS = [
+    "Dashboard",
+    "Customers",
+    "Vehicles",
+    "Repair Orders",
+    "Invoices",
+    "Parts",
+    "Suppliers",
+    "Purchase Orders",
+    "Reports",
+]
 (
     _PAGE_DASHBOARD,
     _PAGE_CUSTOMERS,
     _PAGE_VEHICLES,
     _PAGE_REPAIR_ORDERS,
     _PAGE_INVOICES,
+    _PAGE_PARTS,
+    _PAGE_SUPPLIERS,
+    _PAGE_PURCHASE_ORDERS,
+    _PAGE_REPORTS,
     _PAGE_DETAIL,
-) = range(6)
+) = range(10)
 
 
 class MainWindow(QMainWindow):
@@ -75,6 +119,11 @@ class MainWindow(QMainWindow):
         repair_order_client: RepairOrderApiClientProtocol,
         invoice_client: InvoiceApiClientProtocol,
         attachment_client: AttachmentApiClientProtocol,
+        part_client: PartApiClientProtocol,
+        supplier_client: SupplierApiClientProtocol,
+        purchase_order_client: PurchaseOrderApiClientProtocol,
+        diagnostic_client: DiagnosticApiClientProtocol,
+        report_client: ReportApiClientProtocol,
         theme_manager: ThemeManager,
     ) -> None:
         super().__init__()
@@ -84,6 +133,11 @@ class MainWindow(QMainWindow):
         self._repair_order_client = repair_order_client
         self._invoice_client = invoice_client
         self._attachment_client = attachment_client
+        self._part_client = part_client
+        self._supplier_client = supplier_client
+        self._purchase_order_client = purchase_order_client
+        self._diagnostic_client = diagnostic_client
+        self._report_client = report_client
         self._theme_manager = theme_manager
 
         self.setWindowTitle(APP_NAME)
@@ -120,6 +174,32 @@ class MainWindow(QMainWindow):
         self.invoice_list_view = InvoiceListView(InvoiceListViewModel(invoice_client))
         self.invoice_list_view.invoice_selected.connect(self._open_invoice_detail)
         self._stack.addWidget(self.invoice_list_view)
+
+        self.part_list_view = PartListView(PartListViewModel(part_client))
+        self.part_list_view.part_selected.connect(self._open_part_detail)
+        self.part_list_view.add_part_requested.connect(lambda: self._open_part_detail(None))
+        self._stack.addWidget(self.part_list_view)
+
+        self.supplier_list_view = SupplierListView(SupplierListViewModel(supplier_client))
+        self.supplier_list_view.supplier_selected.connect(self._open_supplier_detail)
+        self.supplier_list_view.add_supplier_requested.connect(
+            lambda: self._open_supplier_detail(None)
+        )
+        self._stack.addWidget(self.supplier_list_view)
+
+        self.purchase_order_list_view = PurchaseOrderListView(
+            PurchaseOrderListViewModel(purchase_order_client)
+        )
+        self.purchase_order_list_view.purchase_order_selected.connect(
+            self._open_purchase_order_detail
+        )
+        self.purchase_order_list_view.add_purchase_order_requested.connect(
+            lambda: self._open_purchase_order_detail_view(supplier_id=None, purchase_order_id=None)
+        )
+        self._stack.addWidget(self.purchase_order_list_view)
+
+        self.report_view = ReportView(ReportViewModel(report_client))
+        self._stack.addWidget(self.report_view)
 
         self._detail_container = QWidget()
         self._detail_layout = QVBoxLayout(self._detail_container)
@@ -178,6 +258,18 @@ class MainWindow(QMainWindow):
         elif row == _PAGE_INVOICES:
             self._stack.setCurrentIndex(_PAGE_INVOICES)
             self.invoice_list_view.load()
+        elif row == _PAGE_PARTS:
+            self._stack.setCurrentIndex(_PAGE_PARTS)
+            self.part_list_view.load()
+        elif row == _PAGE_SUPPLIERS:
+            self._stack.setCurrentIndex(_PAGE_SUPPLIERS)
+            self.supplier_list_view.load()
+        elif row == _PAGE_PURCHASE_ORDERS:
+            self._stack.setCurrentIndex(_PAGE_PURCHASE_ORDERS)
+            self.purchase_order_list_view.load()
+        elif row == _PAGE_REPORTS:
+            self._stack.setCurrentIndex(_PAGE_REPORTS)
+            self.report_view.load()
 
     def _clear_detail_container(self) -> None:
         while self._detail_layout.count():
@@ -191,7 +283,7 @@ class MainWindow(QMainWindow):
     def _open_customer_detail(self, customer_id: int | None) -> None:
         self._clear_detail_container()
         viewmodel = CustomerDetailViewModel(self._customer_client, customer_id)
-        view = CustomerDetailView(viewmodel)
+        view = CustomerDetailView(viewmodel, self._report_client)
         view.closed.connect(self._back_to_customers)
         view.saved.connect(lambda _cid: self._back_to_customers())
         view.vehicle_selected.connect(self._open_vehicle_detail)
@@ -214,7 +306,12 @@ class MainWindow(QMainWindow):
         self._clear_detail_container()
         viewmodel = VehicleDetailViewModel(self._vehicle_client, customer_id, vehicle_id)
         view = VehicleDetailView(
-            viewmodel, self._estimate_client, self._repair_order_client, self._invoice_client
+            viewmodel,
+            self._estimate_client,
+            self._repair_order_client,
+            self._invoice_client,
+            self._diagnostic_client,
+            self._report_client,
         )
         view.closed.connect(self._back_to_vehicles)
         view.saved.connect(lambda _vid: self._back_to_vehicles())
@@ -223,6 +320,8 @@ class MainWindow(QMainWindow):
         view.repair_order_selected.connect(self._open_repair_order_detail)
         view.add_repair_order_requested.connect(self._open_new_repair_order_for_vehicle)
         view.invoice_selected.connect(self._open_invoice_detail)
+        view.diagnostic_session_selected.connect(self._open_diagnostic_session_detail)
+        view.add_diagnostic_session_requested.connect(self._open_new_diagnostic_session_for_vehicle)
         self._detail_layout.addWidget(view)
         self._nav_list.setCurrentRow(-1)
         self._stack.setCurrentIndex(_PAGE_DETAIL)
@@ -260,7 +359,7 @@ class MainWindow(QMainWindow):
         viewmodel = RepairOrderDetailViewModel(
             self._repair_order_client, vehicle_id, repair_order_id
         )
-        view = RepairOrderDetailView(viewmodel, self._attachment_client)
+        view = RepairOrderDetailView(viewmodel, self._attachment_client, self._part_client)
         view.closed.connect(self._back_to_repair_orders_or_vehicles)
         view.saved.connect(lambda _rid: None)  # stays on the same (now-editable) page
         view.converted.connect(self._open_invoice_detail)
@@ -274,6 +373,70 @@ class MainWindow(QMainWindow):
         viewmodel = InvoiceDetailViewModel(self._invoice_client, invoice_id)
         view = InvoiceDetailView(viewmodel)
         view.closed.connect(self._back_to_invoices_or_vehicles)
+        self._detail_layout.addWidget(view)
+        self._nav_list.setCurrentRow(-1)
+        self._stack.setCurrentIndex(_PAGE_DETAIL)
+        view.load()
+
+    def _open_part_detail(self, part_id: int | None) -> None:
+        self._clear_detail_container()
+        viewmodel = PartDetailViewModel(self._part_client, part_id)
+        view = PartDetailView(viewmodel)
+        view.closed.connect(self._back_to_parts)
+        view.saved.connect(lambda _pid: None)  # stays on the same (now-editable) page
+        self._detail_layout.addWidget(view)
+        self._nav_list.setCurrentRow(-1)
+        self._stack.setCurrentIndex(_PAGE_DETAIL)
+        view.load()
+
+    def _open_supplier_detail(self, supplier_id: int | None) -> None:
+        self._clear_detail_container()
+        viewmodel = SupplierDetailViewModel(self._supplier_client, supplier_id)
+        view = SupplierDetailView(viewmodel)
+        view.closed.connect(self._back_to_suppliers)
+        view.saved.connect(lambda _sid: None)  # stays on the same (now-editable) page
+        view.purchase_order_selected.connect(self._open_purchase_order_detail)
+        view.add_purchase_order_requested.connect(self._open_new_purchase_order_for_supplier)
+        self._detail_layout.addWidget(view)
+        self._nav_list.setCurrentRow(-1)
+        self._stack.setCurrentIndex(_PAGE_DETAIL)
+        view.load()
+
+    def _open_purchase_order_detail(self, purchase_order_id: int) -> None:
+        self._open_purchase_order_detail_view(supplier_id=None, purchase_order_id=purchase_order_id)
+
+    def _open_new_purchase_order_for_supplier(self, supplier_id: int) -> None:
+        self._open_purchase_order_detail_view(supplier_id=supplier_id, purchase_order_id=None)
+
+    def _open_purchase_order_detail_view(
+        self, supplier_id: int | None, purchase_order_id: int | None
+    ) -> None:
+        self._clear_detail_container()
+        viewmodel = PurchaseOrderDetailViewModel(
+            self._purchase_order_client, self._supplier_client, supplier_id, purchase_order_id
+        )
+        view = PurchaseOrderDetailView(viewmodel, self._part_client)
+        view.closed.connect(self._back_to_purchase_orders)
+        view.saved.connect(lambda _poid: None)  # stays on the same (now-editable) page
+        self._detail_layout.addWidget(view)
+        self._nav_list.setCurrentRow(-1)
+        self._stack.setCurrentIndex(_PAGE_DETAIL)
+        view.load()
+
+    def _open_diagnostic_session_detail(self, session_id: int) -> None:
+        self._open_diagnostic_session_detail_view(vehicle_id=0, session_id=session_id)
+
+    def _open_new_diagnostic_session_for_vehicle(self, vehicle_id: int) -> None:
+        self._open_diagnostic_session_detail_view(vehicle_id=vehicle_id, session_id=None)
+
+    def _open_diagnostic_session_detail_view(self, vehicle_id: int, session_id: int | None) -> None:
+        self._clear_detail_container()
+        viewmodel = DiagnosticSessionDetailViewModel(
+            self._diagnostic_client, vehicle_id, session_id
+        )
+        view = DiagnosticSessionDetailView(viewmodel, self._attachment_client)
+        view.closed.connect(self._back_to_vehicles)
+        view.saved.connect(lambda _sid: None)  # stays on the same (now-editable) page
         self._detail_layout.addWidget(view)
         self._nav_list.setCurrentRow(-1)
         self._stack.setCurrentIndex(_PAGE_DETAIL)
@@ -294,3 +457,15 @@ class MainWindow(QMainWindow):
     def _back_to_invoices_or_vehicles(self) -> None:
         self._clear_detail_container()
         self._nav_list.setCurrentRow(_PAGE_INVOICES)
+
+    def _back_to_parts(self) -> None:
+        self._clear_detail_container()
+        self._nav_list.setCurrentRow(_PAGE_PARTS)
+
+    def _back_to_suppliers(self) -> None:
+        self._clear_detail_container()
+        self._nav_list.setCurrentRow(_PAGE_SUPPLIERS)
+
+    def _back_to_purchase_orders(self) -> None:
+        self._clear_detail_container()
+        self._nav_list.setCurrentRow(_PAGE_PURCHASE_ORDERS)

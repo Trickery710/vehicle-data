@@ -16,9 +16,14 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from frontend.mechanic_shop.api_client.attachment_client import AttachmentApiClient
 from frontend.mechanic_shop.api_client.base_client import ApiClient
 from frontend.mechanic_shop.api_client.customer_client import CustomerApiClient
+from frontend.mechanic_shop.api_client.diagnostic_client import DiagnosticApiClient
 from frontend.mechanic_shop.api_client.estimate_client import EstimateApiClient
 from frontend.mechanic_shop.api_client.invoice_client import InvoiceApiClient
+from frontend.mechanic_shop.api_client.part_client import PartApiClient
+from frontend.mechanic_shop.api_client.purchase_order_client import PurchaseOrderApiClient
 from frontend.mechanic_shop.api_client.repair_order_client import RepairOrderApiClient
+from frontend.mechanic_shop.api_client.report_client import ReportApiClient
+from frontend.mechanic_shop.api_client.supplier_client import SupplierApiClient
 from frontend.mechanic_shop.api_client.vehicle_client import VehicleApiClient
 from frontend.mechanic_shop.logging_config import configure_logging
 from frontend.mechanic_shop.server_manager import BackendStartupError, ServerManager
@@ -51,6 +56,11 @@ def main() -> int:
     repair_order_client = RepairOrderApiClient(api_client)
     invoice_client = InvoiceApiClient(api_client)
     attachment_client = AttachmentApiClient(api_client)
+    part_client = PartApiClient(api_client)
+    supplier_client = SupplierApiClient(api_client)
+    purchase_order_client = PurchaseOrderApiClient(api_client)
+    diagnostic_client = DiagnosticApiClient(api_client)
+    report_client = ReportApiClient(api_client)
 
     theme_manager = ThemeManager(app)
     theme_manager.apply_saved_theme()
@@ -62,6 +72,11 @@ def main() -> int:
         repair_order_client,
         invoice_client,
         attachment_client,
+        part_client,
+        supplier_client,
+        purchase_order_client,
+        diagnostic_client,
+        report_client,
         theme_manager,
     )
     window.show()

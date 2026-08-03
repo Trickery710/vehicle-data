@@ -14,6 +14,7 @@ class LineItemCreate(BaseModel):
     unit_price: float = 0
     is_taxable: bool = True
     part_number: str | None = None
+    part_id: int | None = None
     warranty_text: str | None = None
     sort_order: int = 0
 
@@ -28,6 +29,7 @@ class LineItemRead(BaseModel):
     unit_price: float
     is_taxable: bool
     part_number: str | None
+    part_id: int | None
     warranty_text: str | None
     sort_order: int
     line_total: float

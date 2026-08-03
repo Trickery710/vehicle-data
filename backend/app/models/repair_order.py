@@ -53,6 +53,7 @@ class RepairOrder(TimestampMixin, Base):
     technician_notes: Mapped[str | None] = mapped_column(Text)
     internal_notes: Mapped[str | None] = mapped_column(Text)
     customer_notes: Mapped[str | None] = mapped_column(Text)
+    assigned_technician: Mapped[str | None] = mapped_column(String(150))
 
     started_at: Mapped[datetime | None] = mapped_column()
     completed_at: Mapped[datetime | None] = mapped_column()

@@ -95,3 +95,18 @@ def test_convert_to_invoice(qtbot, fake_repair_order_client) -> None:
 
     assert blocker.args == [999]
     assert fake_repair_order_client.convert_calls == [1]
+
+
+def test_add_part_from_inventory_reloads_line_items(qtbot, fake_repair_order_client) -> None:
+    fake_repair_order_client.repair_orders[1] = RepairOrder(id=1, vehicle_id=1)
+    fake_repair_order_client.line_items[1] = []
+    viewmodel = RepairOrderDetailViewModel(
+        fake_repair_order_client, vehicle_id=1, repair_order_id=1
+    )
+
+    with qtbot.waitSignal(viewmodel.line_items_loaded, timeout=1000):
+        viewmodel.add_part_from_inventory(part_id=5, quantity=2, unit_price=45)
+
+    assert len(viewmodel.line_items) == 1
+    assert viewmodel.line_items[0].part_id == 5
+    assert fake_repair_order_client.add_part_calls == [(1, 5, 2, 45)]

@@ -68,6 +68,7 @@ class EntityType(StrEnum):
     REPAIR_ORDER = "repair_order"
     INVOICE = "invoice"
     ESTIMATE = "estimate"
+    DIAGNOSTIC_SESSION = "diagnostic_session"
 
 
 class AttachmentType(StrEnum):
@@ -97,8 +98,9 @@ class TimelineEventType(StrEnum):
     PAYMENT_RECEIVED = "payment_received"
     INVOICE_PAID_IN_FULL = "invoice_paid_in_full"
     INVOICE_VOIDED = "invoice_voided"
-    # Future phases append values here (NOTE_ADDED, ATTACHMENT_ADDED,
-    # OBD_SCAN_PERFORMED, ...) with no migration needed.
+    DIAGNOSTIC_SESSION_CREATED = "diagnostic_session_created"
+    # Future phases append values here (NOTE_ADDED, ATTACHMENT_ADDED, ...)
+    # with no migration needed.
 
 
 class EstimateStatus(StrEnum):
@@ -158,3 +160,44 @@ class PaymentMethod(StrEnum):
 class PhotoStage(StrEnum):
     BEFORE = "before"
     AFTER = "after"
+
+
+class InventoryAdjustmentReason(StrEnum):
+    RECEIVED_PURCHASE_ORDER = "received_purchase_order"
+    SOLD_REPAIR_ORDER = "sold_repair_order"
+    RETURNED_TO_SUPPLIER = "returned_to_supplier"
+    MANUAL_COUNT_CORRECTION = "manual_count_correction"
+    INITIAL_STOCK = "initial_stock"
+
+
+class PurchaseOrderStatus(StrEnum):
+    DRAFT = "draft"
+    ORDERED = "ordered"
+    PARTIALLY_RECEIVED = "partially_received"
+    RECEIVED = "received"
+    CANCELLED = "cancelled"
+
+
+class DiagnosticCodeType(StrEnum):
+    OBD2 = "obd2"
+    MANUFACTURER = "manufacturer"
+
+
+class TroubleCodeStatus(StrEnum):
+    ACTIVE = "active"
+    PENDING = "pending"
+    STORED = "stored"
+    CLEARED = "cleared"
+
+
+class DiagnosticReadingType(StrEnum):
+    FUEL_TRIM = "fuel_trim"
+    COMPRESSION = "compression"
+    LEAK_DOWN = "leak_down"
+    OIL_PRESSURE = "oil_pressure"
+    TRANSMISSION_PRESSURE = "transmission_pressure"
+    BATTERY_TEST = "battery_test"
+    CHARGING_SYSTEM = "charging_system"
+    INJECTOR_BALANCE = "injector_balance"
+    RELATIVE_COMPRESSION = "relative_compression"
+    SMOKE_TEST = "smoke_test"

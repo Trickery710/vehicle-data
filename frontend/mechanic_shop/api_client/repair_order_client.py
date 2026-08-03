@@ -88,3 +88,14 @@ class RepairOrderApiClient:
             f"/repair-orders/{repair_order_id}/convert-to-invoice", json=payload
         )
         return Invoice.from_api(body)
+
+    def add_part_from_inventory(
+        self,
+        repair_order_id: int,
+        part_id: int,
+        quantity: float,
+        unit_price: float | None = None,
+    ) -> LineItem:
+        payload = {"part_id": part_id, "quantity": quantity, "unit_price": unit_price}
+        body = self._client.post(f"/repair-orders/{repair_order_id}/parts", json=payload)
+        return LineItem.from_api(body)
