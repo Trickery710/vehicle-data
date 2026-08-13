@@ -104,13 +104,45 @@ work_done/
 │   ├── views/                     #   QWidget-based Views
 │   ├── barcode/                   #   pure barcode-decode function (Phase 3)
 │   └── server_manager.py          #   spawns/health-checks/stops the backend subprocess
+├── web/                           # React + TypeScript SPA, core-workflow subset (Docker-only)
+│   └── src/{api,pages,components}/
 ├── alembic/                       # migrations (real migrations, not create_all())
+├── Dockerfile, docker-compose.yml # backend + web containers
 └── tests/{backend,frontend}/
 ```
 
-## Setup
+## Web frontend (`web/`)
 
-Requires Python 3.12+ (Ubuntu 24.04 ships this by default).
+A second, browser-based frontend that runs entirely in Docker alongside the backend --
+no venv, no desktop environment required. It's a React + TypeScript SPA that talks to
+the same FastAPI JSON API as the PySide6 app, currently covering the core workflow:
+Dashboard, Customers, Vehicles, Repair Orders, Invoices (line items, status changes,
+payments, PDF export, RO-to-invoice conversion). Parts/Suppliers/Purchase
+Orders/Diagnostics/Reports (Phase 3) and Estimates aren't ported yet -- use the PySide6
+app for those in the meantime.
+
+```bash
+make docker-build
+make docker-up      # backend on http://127.0.0.1:8756, web UI on http://127.0.0.1:5173
+make docker-logs    # follow both services
+make docker-down    # stop
+```
+
+Open `http://127.0.0.1:5173` in a browser. The web UI's API base URL
+(`VITE_API_BASE_URL`) is baked in at build time (see `web/Dockerfile`'s build arg in
+`docker-compose.yml`), defaulting to `http://localhost:8756/api/v1` -- fine for
+accessing it from the same machine. To reach it from another device on your LAN, change
+that build arg to the shop PC's LAN IP and rebuild (`make docker-build`).
+
+Migrations run automatically on backend container startup. The SQLite database lives in
+the named Docker volume `msm-data` (mounted at `/data` in the backend container), so it
+survives `docker compose down` -- only `docker compose down -v` wipes it.
+
+## Setup (PySide6 desktop app)
+
+Requires Python 3.12+ (Ubuntu 24.04 ships this by default). The desktop frontend
+(PySide6) always runs natively -- it needs your screen and webcam, which don't cross a
+container boundary cleanly. The backend can run either natively or in Docker; pick one.
 
 ```bash
 python3 -m venv .venv
@@ -120,6 +152,27 @@ pip install -e ".[dev]"
 ```
 
 ## Running
+
+### Backend in Docker + PySide6 app natively
+
+```bash
+make docker-build
+make docker-up          # backend now listening on http://127.0.0.1:8756
+make docker-down        # stop
+```
+
+Then run the desktop frontend natively, pointed at the containerized backend instead of
+letting it spawn its own:
+
+```bash
+MSM_BACKEND_URL=http://127.0.0.1:8756 python -m frontend.mechanic_shop.main
+```
+
+You still need the frontend's Python deps installed locally (`pip install -e ".[dev]"`
+in a venv, or a system Python with those packages available) since PySide6 doesn't run
+in the container -- Docker only replaces the backend/venv half of this equation.
+
+### Everything native
 
 ```bash
 # Full desktop app (spawns the backend itself)
@@ -163,3 +216,4 @@ make format    # ruff format
 alembic upgrade head                              # apply migrations (also runs automatically on app startup)
 alembic revision --autogenerate -m "description"   # generate a new migration after model changes
 ```
+# vehicle-data
