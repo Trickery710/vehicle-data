@@ -68,7 +68,7 @@ class RepairOrderListView(QWidget):
         self.viewmodel.set_status_filter(None if status == "All" else status)
 
     def _on_row_double_clicked(self, index) -> None:
-        repair_order = self.viewmodel.table_model.repair_order_at(index.row())
+        repair_order = self.viewmodel.table_model.row_at(index.row())
         if repair_order is not None and repair_order.id is not None:
             self.repair_order_selected.emit(repair_order.id)
 

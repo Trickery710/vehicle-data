@@ -41,9 +41,7 @@ def list_parts(
         items, total = service.list_parts(
             below_minimum_only=below_minimum_only, limit=limit, offset=offset
         )
-    return PaginatedResponse(
-        items=[PartRead.model_validate(p) for p in items], total=total, limit=limit, offset=offset
-    )
+    return PaginatedResponse.build(items, PartRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/barcode/{barcode}", response_model=PartRead)

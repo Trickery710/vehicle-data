@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.purchase_order import PurchaseOrder
@@ -13,11 +13,7 @@ class PurchaseOrderRepository(BaseRepository[PurchaseOrder]):
     model = PurchaseOrder
 
     def get_by_number(self, purchase_order_number: str) -> PurchaseOrder | None:
-        return self.db.scalars(
-            select(PurchaseOrder).where(
-                PurchaseOrder.purchase_order_number == purchase_order_number
-            )
-        ).first()
+        return self._first(PurchaseOrder.purchase_order_number == purchase_order_number)
 
     def get_with_items(self, purchase_order_id: int) -> PurchaseOrder | None:
         stmt = (
@@ -42,19 +38,11 @@ class PurchaseOrderRepository(BaseRepository[PurchaseOrder]):
         base = select(PurchaseOrder)
         if status:
             base = base.where(PurchaseOrder.status == status)
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(
-            self.db.scalars(base.order_by(PurchaseOrder.id.desc()).limit(limit).offset(offset))
-        )
-        return items, total
+        return self._paginate(base, PurchaseOrder.id.desc(), limit=limit, offset=offset)
 
     def search(
         self, query: str, limit: int = 50, offset: int = 0
     ) -> tuple[list[PurchaseOrder], int]:
         pattern = f"%{query.strip()}%"
         base = select(PurchaseOrder).where(PurchaseOrder.purchase_order_number.ilike(pattern))
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(
-            self.db.scalars(base.order_by(PurchaseOrder.id.desc()).limit(limit).offset(offset))
-        )
-        return items, total
+        return self._paginate(base, PurchaseOrder.id.desc(), limit=limit, offset=offset)

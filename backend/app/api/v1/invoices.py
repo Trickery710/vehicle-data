@@ -39,12 +39,7 @@ def list_invoices(
         items, total = service.search_invoices(q, limit=limit, offset=offset)
     else:
         items, total = service.list_invoices(status=status, limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[InvoiceRead.model_validate(inv) for inv in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, InvoiceRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{invoice_id}", response_model=InvoiceRead)

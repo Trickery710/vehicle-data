@@ -32,12 +32,7 @@ def list_estimates(
     offset: int = Query(default=0, ge=0),
 ) -> PaginatedResponse[EstimateRead]:
     items, total = service.list_estimates(limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[EstimateRead.model_validate(e) for e in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, EstimateRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{estimate_id}", response_model=EstimateRead)

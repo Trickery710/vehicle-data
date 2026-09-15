@@ -32,11 +32,10 @@ desktop frontend (MVVM), Alembic migrations.
 - 190 automated tests (165 backend, 25 frontend), all passing; `mypy` and `ruff` clean
 
 **Phase 3** -- Parts inventory, suppliers, diagnostics, reports:
-- Parts: full catalog (OEM/aftermarket numbers, barcode, manufacturer, supplier, cost/
-  retail price, core charge, minimum stock, shelf location, warranty), vehicle-fitment
-  compatibility list, camera-based barcode scanning (webcam live decode with a manual-
-  entry fallback), full inventory audit trail (`InventoryAdjustment` ledger -- every
-  stock movement is logged and undeletable) -- own top-level nav tab
+- Parts: full catalog (OEM/aftermarket numbers, barcode (manual entry), manufacturer,
+  supplier, cost/retail price, core charge, minimum stock, shelf location, warranty),
+  vehicle-fitment compatibility list, full inventory audit trail (`InventoryAdjustment`
+  ledger -- every stock movement is logged and undeletable) -- own top-level nav tab
 - Suppliers: contact info, account number, linked purchase-order history -- own
   top-level nav tab
 - Purchase orders: create with line items against real inventory parts, mark ordered,
@@ -61,20 +60,6 @@ desktop frontend (MVVM), Alembic migrations.
 
 See `/home/casey/.claude/plans/shimmering-yawning-reddy.md` (or ask Claude) for the full
 architecture writeup. Phase 4 (OBDPlus integration) is not yet built.
-
-### Camera-based barcode scanning -- one-time system setup
-
-Scanning a barcode with a webcam (Part detail view -> "Scan Barcode") needs the
-`libzbar0` system library on Ubuntu:
-
-```bash
-sudo apt install libzbar0
-```
-
-`opencv-python-headless` (camera capture) and `pyzbar` (barcode decoding) are already
-declared as Python dependencies and install automatically with `pip install -e ".[dev]"`
-below -- `libzbar0` is the one piece `pip` can't install for you. Without a webcam, the
-scanner dialog still works via its manual barcode-entry fallback.
 
 ## Why a local HTTP server for a single-user desktop app?
 
@@ -102,12 +87,13 @@ work_done/
 │   ├── models/                    #   client-side dataclasses
 │   ├── viewmodels/                #   QObject-based ViewModels, background-thread safe
 │   ├── views/                     #   QWidget-based Views
-│   ├── barcode/                   #   pure barcode-decode function (Phase 3)
 │   └── server_manager.py          #   spawns/health-checks/stops the backend subprocess
-├── web/                           # React + TypeScript SPA, core-workflow subset (Docker-only)
+├── web/                           # React + TypeScript SPA, full Phase 1-3 parity (Docker-only)
 │   └── src/{api,pages,components}/
 ├── alembic/                       # migrations (real migrations, not create_all())
 ├── Dockerfile, docker-compose.yml # backend + web containers
+├── data/app-data/                 # SQLite db + attachments, bind-mounted into the backend container
+├── backups/                       # daily incremental snapshots (scripts/backup.sh, cron'd at 2am)
 └── tests/{backend,frontend}/
 ```
 
@@ -115,11 +101,26 @@ work_done/
 
 A second, browser-based frontend that runs entirely in Docker alongside the backend --
 no venv, no desktop environment required. It's a React + TypeScript SPA that talks to
-the same FastAPI JSON API as the PySide6 app, currently covering the core workflow:
-Dashboard, Customers, Vehicles, Repair Orders, Invoices (line items, status changes,
-payments, PDF export, RO-to-invoice conversion). Parts/Suppliers/Purchase
-Orders/Diagnostics/Reports (Phase 3) and Estimates aren't ported yet -- use the PySide6
-app for those in the meantime.
+the same FastAPI JSON API as the PySide6 app, at full feature parity for Phases 1-3
+except file/photo attachments (upload/download UI isn't built in the web app):
+
+- Dashboard, Customers, Vehicles (mileage, timeline, one-click history PDF export)
+- Estimates (vehicle-scoped: line items, send/approve/decline, convert to repair order)
+- Repair Orders (line items, "Add Part From Inventory", status lifecycle, convert to
+  invoice) -- own nav tab, also reachable per-vehicle
+- Invoices (line items, totals, payments, PDF export, send/void) -- own nav tab
+- Parts inventory (catalog, barcode as a manual-entry field, vehicle-fitment
+  compatibility, manual count corrections, full adjustment history) -- own nav tab
+- Suppliers (contact info, linked purchase-order history) -- own nav tab
+- Purchase Orders (create with line items, mark ordered, receive full/partial per line,
+  record returns, cancel) -- own nav tab, also reachable per-supplier
+- Diagnostics (trouble codes, readings) -- vehicle-scoped, no top-level tab (matches the
+  desktop app's design)
+- Reports (revenue, sales tax, profit, labor hours, parts sold, technician productivity,
+  inventory, vehicle/customer history; monthly grouping; CSV/PDF export) -- own nav tab
+
+No camera-based barcode scanning here either -- barcode is a plain manual-entry text
+field, same as the desktop app (see below).
 
 ```bash
 make docker-build
@@ -134,15 +135,43 @@ Open `http://127.0.0.1:5173` in a browser. The web UI's API base URL
 accessing it from the same machine. To reach it from another device on your LAN, change
 that build arg to the shop PC's LAN IP and rebuild (`make docker-build`).
 
-Migrations run automatically on backend container startup. The SQLite database lives in
-the named Docker volume `msm-data` (mounted at `/data` in the backend container), so it
-survives `docker compose down` -- only `docker compose down -v` wipes it.
+Migrations run automatically on backend container startup. The SQLite database and file
+attachments live in `data/app-data/` -- a plain host folder (bind-mounted to `/data` in
+the backend container, owned by your host user, not Docker-managed), so it survives
+`docker compose down`/`up`/rebuilds and is right there to look at, copy, or point any
+sync tool (Nextcloud, Dropbox, rsync to a NAS, etc.) at.
+
+## Backups (`scripts/backup.sh`)
+
+Runs automatically every night at 2am via cron (`crontab -l` to see it;
+`crontab -e` to change the time) and writes into `backups/YYYY-MM-DD/`. Run it by hand
+any time with `make backup`.
+
+Each day's folder looks like a complete snapshot (`mechanic_shop.db` + `attachments/`),
+but files identical to the previous day are hardlinked rather than re-copied -- so an
+unchanged day costs no extra disk space, and only what actually changed gets physically
+written. Deleting an old snapshot never breaks a newer one (the filesystem only frees a
+file once its last hardlink is gone). Snapshots older than 30 days are pruned
+automatically (override with `RETENTION_DAYS=90 ./scripts/backup.sh`).
+
+The database is never copied directly while the app might be writing to it -- it's read
+through SQLite's own online backup API first, which produces a consistent snapshot
+regardless of concurrent writers, and *that* consistent copy is what gets compared
+against yesterday's.
+
+**To restore** a snapshot: stop the backend (`make docker-down`), copy
+`backups/<date>/mechanic_shop.db` and `backups/<date>/attachments/` over the current
+ones in `data/app-data/`, then `make docker-up`.
+
+`backups/` currently lives inside this repo -- point `BACKUP_ROOT=/path/to/somewhere/
+./scripts/backup.sh` (and update the crontab line) at an external drive or NAS mount
+once you have one, for real off-machine "cold storage."
 
 ## Setup (PySide6 desktop app)
 
 Requires Python 3.12+ (Ubuntu 24.04 ships this by default). The desktop frontend
-(PySide6) always runs natively -- it needs your screen and webcam, which don't cross a
-container boundary cleanly. The backend can run either natively or in Docker; pick one.
+(PySide6) always runs natively -- it needs your screen, which doesn't cross a container
+boundary cleanly. The backend can run either natively or in Docker; pick one.
 
 ```bash
 python3 -m venv .venv

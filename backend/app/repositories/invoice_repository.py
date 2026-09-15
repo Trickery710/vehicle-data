@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.invoice import Invoice
@@ -13,9 +13,7 @@ class InvoiceRepository(BaseRepository[Invoice]):
     model = Invoice
 
     def get_by_number(self, invoice_number: str) -> Invoice | None:
-        return self.db.scalars(
-            select(Invoice).where(Invoice.invoice_number == invoice_number)
-        ).first()
+        return self._first(Invoice.invoice_number == invoice_number)
 
     def get_with_payments(self, invoice_id: int) -> Invoice | None:
         # populate_existing=True: payments are inserted directly via
@@ -49,13 +47,9 @@ class InvoiceRepository(BaseRepository[Invoice]):
         base = select(Invoice)
         if status:
             base = base.where(Invoice.status == status)
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Invoice.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Invoice.id.desc(), limit=limit, offset=offset)
 
     def search(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[Invoice], int]:
         pattern = f"%{query.strip()}%"
         base = select(Invoice).where(Invoice.invoice_number.ilike(pattern))
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Invoice.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Invoice.id.desc(), limit=limit, offset=offset)

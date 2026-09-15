@@ -62,7 +62,7 @@ class SupplierListView(QWidget):
         self.viewmodel.load()
 
     def _on_row_double_clicked(self, index) -> None:
-        supplier = self.viewmodel.table_model.supplier_at(index.row())
+        supplier = self.viewmodel.table_model.row_at(index.row())
         if supplier is not None and supplier.id is not None:
             self.supplier_selected.emit(supplier.id)
 

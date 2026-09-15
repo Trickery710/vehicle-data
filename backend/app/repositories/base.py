@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from backend.app.db.base import Base
@@ -17,6 +17,32 @@ class BaseRepository(Generic[ModelT]):
 
     def __init__(self, db: Session) -> None:
         self.db = db
+
+    # -- shared query helpers ------------------------------------------------
+    # Defined before ``list()`` so the builtin ``list`` stays in scope for
+    # their return annotations.
+
+    def _first(self, *criteria: Any) -> ModelT | None:
+        """First row of ``self.model`` matching all ``criteria`` (or None)."""
+        return self.db.scalars(select(self.model).where(*criteria)).first()
+
+    def _count(self, base: Select[Any]) -> int:
+        """Total row count for a pre-pagination SELECT."""
+        return self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
+
+    def _paginate(
+        self, base: Select[tuple[ModelT]], *order_by: Any, limit: int, offset: int
+    ) -> tuple[list[ModelT], int]:
+        """Return ``(page_items, total_count)`` for a filtered ``base`` SELECT.
+
+        ``total_count`` reflects ``base`` before ordering/pagination; the page
+        applies ``order_by`` then ``limit``/``offset``.
+        """
+        total = self._count(base)
+        items = list(self.db.scalars(base.order_by(*order_by).limit(limit).offset(offset)))
+        return items, total
+
+    # -- CRUD --------------------------------------------------------------
 
     def get(self, entity_id: int) -> ModelT | None:
         return self.db.get(self.model, entity_id)

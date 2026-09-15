@@ -11,13 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import (
-    QAbstractTableModel,
-    QModelIndex,
-    QPersistentModelIndex,
-    Qt,
-    QTimer,
-)
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -33,45 +27,13 @@ from PySide6.QtWidgets import (
 
 from frontend.mechanic_shop.api_client.protocols import PartApiClientProtocol
 from frontend.mechanic_shop.models.part import Part
-
-_COLUMNS = ["Part #", "Description", "On Hand", "Retail Price"]
-_SEARCH_DEBOUNCE_MS = 300
-_Index = QModelIndex | QPersistentModelIndex
+from frontend.mechanic_shop.viewmodels.list_viewmodel import SEARCH_DEBOUNCE_MS, ListTableModel
 
 
-class _PartTableModel(QAbstractTableModel):
-    def __init__(self) -> None:
-        super().__init__()
-        self._parts: list[Part] = []
+class _PartTableModel(ListTableModel[Part]):
+    COLUMNS = ("Part #", "Description", "On Hand", "Retail Price")
 
-    def set_parts(self, parts: list[Part]) -> None:
-        self.beginResetModel()
-        self._parts = parts
-        self.endResetModel()
-
-    def part_at(self, row: int) -> Part | None:
-        if 0 <= row < len(self._parts):
-            return self._parts[row]
-        return None
-
-    def rowCount(self, parent: _Index = QModelIndex()) -> int:  # noqa: N802 -- Qt API
-        return 0 if parent.isValid() else len(self._parts)
-
-    def columnCount(self, parent: _Index = QModelIndex()) -> int:  # noqa: N802 -- Qt API
-        return 0 if parent.isValid() else len(_COLUMNS)
-
-    def headerData(
-        self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole
-    ):  # noqa: N802 -- Qt API
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
-            return _COLUMNS[section]
-        return None
-
-    def data(self, index: _Index, role: int = Qt.ItemDataRole.DisplayRole):  # noqa: N802 -- Qt API
-        if not index.isValid() or role != Qt.ItemDataRole.DisplayRole:
-            return None
-        part = self._parts[index.row()]
-        column = index.column()
+    def _value(self, part: Part, column: int) -> object:
         if column == 0:
             return part.part_number
         if column == 1:
@@ -131,7 +93,7 @@ class PartPickerDialog(QDialog):
 
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
-        self._search_timer.setInterval(_SEARCH_DEBOUNCE_MS)
+        self._search_timer.setInterval(SEARCH_DEBOUNCE_MS)
         self._search_timer.timeout.connect(self._execute_search)
 
         self._execute_search()
@@ -140,7 +102,7 @@ class PartPickerDialog(QDialog):
         index = self._table.currentIndex()
         if not index.isValid():
             return None
-        return self._table_model.part_at(index.row())
+        return self._table_model.row_at(index.row())
 
     def selected_quantity(self) -> float:
         return self._quantity_spin.value()
@@ -156,6 +118,6 @@ class PartPickerDialog(QDialog):
 
         def _on_success(result: tuple[list[Part], int]) -> None:
             parts, _total = result
-            self._table_model.set_parts(parts)
+            self._table_model.set_rows(parts)
 
         self._run_in_background(_fetch, on_success=_on_success)

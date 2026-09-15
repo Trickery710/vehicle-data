@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.customer import Customer
@@ -23,13 +23,9 @@ class CustomerRepository(BaseRepository[Customer]):
 
     def list_active(self, limit: int = 50, offset: int = 0) -> tuple[list[Customer], int]:
         base = select(Customer).where(Customer.is_active.is_(True))
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(
-            self.db.scalars(
-                base.order_by(Customer.last_name, Customer.first_name).limit(limit).offset(offset)
-            )
+        return self._paginate(
+            base, Customer.last_name, Customer.first_name, limit=limit, offset=offset
         )
-        return items, total
 
     def search(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[Customer], int]:
         """Matches name, business name, email, or phone number."""
@@ -48,6 +44,4 @@ class CustomerRepository(BaseRepository[Customer]):
             )
             .distinct()
         )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Customer.last_name).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Customer.last_name, limit=limit, offset=offset)

@@ -14,7 +14,7 @@ def test_load_populates_table_model(qtbot, fake_customer_client) -> None:
         viewmodel.load()
 
     assert viewmodel.table_model.rowCount() == 1
-    assert viewmodel.table_model.customer_at(0).first_name == "Jane"
+    assert viewmodel.table_model.row_at(0).first_name == "Jane"
     assert viewmodel.total == 1
 
 

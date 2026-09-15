@@ -1,11 +1,10 @@
 """Part detail view: create/edit a Part, its vehicle-compatibility list,
-barcode scanning, and its read-only inventory-adjustment history."""
+and its read-only inventory-adjustment history."""
 
 from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QDialog,
     QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
@@ -22,7 +21,6 @@ from PySide6.QtWidgets import (
 )
 
 from frontend.mechanic_shop.viewmodels.part_detail_viewmodel import PartDetailViewModel
-from frontend.mechanic_shop.views.widgets.barcode_scanner_dialog import BarcodeScannerDialog
 from frontend.mechanic_shop.views.widgets.part_compatibility_editor import PartCompatibilityEditor
 
 _MAX_AMOUNT = 1_000_000
@@ -55,12 +53,7 @@ class PartDetailView(QWidget):
         self._oem_number = QLineEdit()
         self._aftermarket_number = QLineEdit()
 
-        barcode_row = QHBoxLayout()
         self._barcode = QLineEdit()
-        barcode_row.addWidget(self._barcode, stretch=1)
-        scan_button = QPushButton("Scan Barcode")
-        scan_button.clicked.connect(self._on_scan_barcode_clicked)
-        barcode_row.addWidget(scan_button)
 
         self._description = QLineEdit()
         self._manufacturer = QLineEdit()
@@ -84,7 +77,7 @@ class PartDetailView(QWidget):
         form.addRow("Part Number", self._part_number)
         form.addRow("OEM Number", self._oem_number)
         form.addRow("Aftermarket Number", self._aftermarket_number)
-        form.addRow("Barcode", barcode_row)
+        form.addRow("Barcode", self._barcode)
         form.addRow("Description", self._description)
         form.addRow("Manufacturer", self._manufacturer)
         form.addRow("Purchase Cost", self._purchase_cost)
@@ -213,13 +206,6 @@ class PartDetailView(QWidget):
     def _on_saved(self, part_id: int) -> None:
         self.load()
         self.saved.emit(part_id)
-
-    def _on_scan_barcode_clicked(self) -> None:
-        dialog = BarcodeScannerDialog(self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            barcode = dialog.scanned_barcode()
-            if barcode:
-                self._barcode.setText(barcode)
 
     def _on_compatibility_edited(self) -> None:
         self.viewmodel.replace_compatibility(self._compatibility_editor.get_compatibility())

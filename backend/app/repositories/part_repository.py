@@ -10,7 +10,7 @@ like ``MileageRecord``, so it lives here rather than in a dedicated
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.inventory_adjustment import InventoryAdjustment
@@ -22,10 +22,10 @@ class PartRepository(BaseRepository[Part]):
     model = Part
 
     def get_by_barcode(self, barcode: str) -> Part | None:
-        return self.db.scalars(select(Part).where(Part.barcode == barcode)).first()
+        return self._first(Part.barcode == barcode)
 
     def get_by_part_number(self, part_number: str) -> Part | None:
-        return self.db.scalars(select(Part).where(Part.part_number == part_number)).first()
+        return self._first(Part.part_number == part_number)
 
     def list_active(
         self, below_minimum_only: bool = False, limit: int = 50, offset: int = 0
@@ -33,9 +33,7 @@ class PartRepository(BaseRepository[Part]):
         base = select(Part).where(Part.is_active.is_(True))
         if below_minimum_only:
             base = base.where(Part.quantity_on_hand < Part.minimum_stock)
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Part.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Part.id.desc(), limit=limit, offset=offset)
 
     def search(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[Part], int]:
         """Matches part number, OEM number, aftermarket number, barcode, or description."""
@@ -49,9 +47,7 @@ class PartRepository(BaseRepository[Part]):
                 Part.description.ilike(pattern),
             )
         )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Part.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Part.id.desc(), limit=limit, offset=offset)
 
     def apply_adjustment(
         self,

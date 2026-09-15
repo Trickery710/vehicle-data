@@ -52,12 +52,7 @@ def list_vehicles(
         items, total = service.search_vehicles(q, limit=limit, offset=offset)
     else:
         items, total = service.list_vehicles(limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[VehicleRead.model_validate(v) for v in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, VehicleRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{vehicle_id}", response_model=VehicleRead)

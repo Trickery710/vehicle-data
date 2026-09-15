@@ -36,11 +36,8 @@ def list_purchase_orders(
         items, total = service.search_purchase_orders(q, limit=limit, offset=offset)
     else:
         items, total = service.list_purchase_orders(status=status, limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[PurchaseOrderRead.model_validate(po) for po in items],
-        total=total,
-        limit=limit,
-        offset=offset,
+    return PaginatedResponse.build(
+        items, PurchaseOrderRead, total=total, limit=limit, offset=offset
     )
 
 

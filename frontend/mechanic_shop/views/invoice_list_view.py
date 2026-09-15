@@ -68,7 +68,7 @@ class InvoiceListView(QWidget):
         self.viewmodel.set_status_filter(None if status == "All" else status)
 
     def _on_row_double_clicked(self, index) -> None:
-        invoice = self.viewmodel.table_model.invoice_at(index.row())
+        invoice = self.viewmodel.table_model.row_at(index.row())
         if invoice is not None and invoice.id is not None:
             self.invoice_selected.emit(invoice.id)
 

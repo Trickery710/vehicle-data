@@ -43,12 +43,7 @@ def list_repair_orders(
         items, total = service.search_repair_orders(q, limit=limit, offset=offset)
     else:
         items, total = service.list_repair_orders(status=status, limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[RepairOrderRead.model_validate(ro) for ro in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, RepairOrderRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{repair_order_id}", response_model=RepairOrderRead)

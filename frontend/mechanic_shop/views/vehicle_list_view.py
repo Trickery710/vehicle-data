@@ -59,7 +59,7 @@ class VehicleListView(QWidget):
         self.viewmodel.load()
 
     def _on_row_double_clicked(self, index) -> None:
-        vehicle = self.viewmodel.table_model.vehicle_at(index.row())
+        vehicle = self.viewmodel.table_model.row_at(index.row())
         if vehicle is not None and vehicle.id is not None:
             self.vehicle_selected.emit(vehicle.id)
 

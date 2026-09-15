@@ -78,7 +78,7 @@ class PurchaseOrderListView(QWidget):
         self.viewmodel.set_status_filter(None if status == "All" else status)
 
     def _on_row_double_clicked(self, index) -> None:
-        po = self.viewmodel.table_model.purchase_order_at(index.row())
+        po = self.viewmodel.table_model.row_at(index.row())
         if po is not None and po.id is not None:
             self.purchase_order_selected.emit(po.id)
 

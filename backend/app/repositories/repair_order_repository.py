@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.repair_order import RepairOrder
@@ -13,9 +13,7 @@ class RepairOrderRepository(BaseRepository[RepairOrder]):
     model = RepairOrder
 
     def get_by_number(self, repair_order_number: str) -> RepairOrder | None:
-        return self.db.scalars(
-            select(RepairOrder).where(RepairOrder.repair_order_number == repair_order_number)
-        ).first()
+        return self._first(RepairOrder.repair_order_number == repair_order_number)
 
     def get_with_checklist(self, repair_order_id: int) -> RepairOrder | None:
         # populate_existing=True: checklist items are inserted directly via
@@ -46,11 +44,7 @@ class RepairOrderRepository(BaseRepository[RepairOrder]):
         base = select(RepairOrder)
         if status:
             base = base.where(RepairOrder.status == status)
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(
-            self.db.scalars(base.order_by(RepairOrder.id.desc()).limit(limit).offset(offset))
-        )
-        return items, total
+        return self._paginate(base, RepairOrder.id.desc(), limit=limit, offset=offset)
 
     def search(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[RepairOrder], int]:
         pattern = f"%{query.strip()}%"
@@ -60,8 +54,4 @@ class RepairOrderRepository(BaseRepository[RepairOrder]):
                 RepairOrder.complaint.ilike(pattern),
             )
         )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(
-            self.db.scalars(base.order_by(RepairOrder.id.desc()).limit(limit).offset(offset))
-        )
-        return items, total
+        return self._paginate(base, RepairOrder.id.desc(), limit=limit, offset=offset)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from backend.app.models.estimate import Estimate
 from backend.app.repositories.base import BaseRepository
@@ -12,9 +12,7 @@ class EstimateRepository(BaseRepository[Estimate]):
     model = Estimate
 
     def get_by_number(self, estimate_number: str) -> Estimate | None:
-        return self.db.scalars(
-            select(Estimate).where(Estimate.estimate_number == estimate_number)
-        ).first()
+        return self._first(Estimate.estimate_number == estimate_number)
 
     def list_for_vehicle(self, vehicle_id: int) -> list[Estimate]:
         stmt = (
@@ -23,7 +21,4 @@ class EstimateRepository(BaseRepository[Estimate]):
         return list(self.db.scalars(stmt))
 
     def list_all(self, limit: int = 50, offset: int = 0) -> tuple[list[Estimate], int]:
-        base = select(Estimate)
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Estimate.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(select(Estimate), Estimate.id.desc(), limit=limit, offset=offset)

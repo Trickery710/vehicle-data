@@ -14,7 +14,7 @@ def test_load_populates_table(qtbot, fake_part_client) -> None:
         viewmodel.load()
 
     assert viewmodel.total == 1
-    assert viewmodel.table_model.part_at(0).part_number == "BRK-001"
+    assert viewmodel.table_model.row_at(0).part_number == "BRK-001"
 
 
 def test_below_minimum_only_filter(qtbot, fake_part_client) -> None:
@@ -30,4 +30,4 @@ def test_below_minimum_only_filter(qtbot, fake_part_client) -> None:
         viewmodel.set_below_minimum_only(True)
 
     assert viewmodel.total == 1
-    assert viewmodel.table_model.part_at(0).part_number == "LOW-1"
+    assert viewmodel.table_model.row_at(0).part_number == "LOW-1"

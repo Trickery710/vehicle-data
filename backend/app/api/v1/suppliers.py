@@ -28,12 +28,7 @@ def list_suppliers(
         items, total = service.search_suppliers(q, limit=limit, offset=offset)
     else:
         items, total = service.list_suppliers(limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[SupplierRead.model_validate(s) for s in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, SupplierRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{supplier_id}", response_model=SupplierRead)

@@ -11,6 +11,10 @@ venv/
 data/*
 !data/.gitkeep
 
+# daily backup snapshots (scripts/backup.sh) -- local/host-specific, not source
+backups/*
+!backups/.gitkeep
+
 # test / tool caches
 .pytest_cache/
 .mypy_cache/
@@ -23,3 +27,7 @@ htmlcov/
 .idea/
 *.swp
 .DS_Store
+
+# web frontend
+web/node_modules/
+web/dist/

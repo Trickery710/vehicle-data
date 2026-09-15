@@ -29,12 +29,7 @@ def list_customers(
         items, total = service.search_customers(q, limit=limit, offset=offset)
     else:
         items, total = service.list_customers(limit=limit, offset=offset)
-    return PaginatedResponse(
-        items=[CustomerRead.model_validate(c) for c in items],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
+    return PaginatedResponse.build(items, CustomerRead, total=total, limit=limit, offset=offset)
 
 
 @router.get("/{customer_id}", response_model=CustomerRead)

@@ -1,0 +1,9 @@
+Ui EDITS
+1. CUSTOMER TAB
+add customer doesn't have a phone number section
+customer tab should have an edit option
+
+2. VEHICLE TAB
+should allow adding vehicle without customer and then just have the customer in a drop down
+vehicle card should have an option to query online resources for vehicle information by vin. save as a file the format should be {vin}.{source} 
+the vehicle card should auto fill common information from the decoded vin. it should have an expandable section with exbandable subsystems that contains the rest of the parsed decoded vin. 

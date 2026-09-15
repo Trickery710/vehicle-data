@@ -69,7 +69,7 @@ class PartListView(QWidget):
         self.viewmodel.load()
 
     def _on_row_double_clicked(self, index) -> None:
-        part = self.viewmodel.table_model.part_at(index.row())
+        part = self.viewmodel.table_model.row_at(index.row())
         if part is not None and part.id is not None:
             self.part_selected.emit(part.id)
 

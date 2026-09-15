@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from backend.app.models.mileage_record import MileageRecord
@@ -16,7 +16,7 @@ class VehicleRepository(BaseRepository[Vehicle]):
     model = Vehicle
 
     def get_by_vin(self, vin: str) -> Vehicle | None:
-        return self.db.scalars(select(Vehicle).where(Vehicle.vin == vin)).first()
+        return self._first(Vehicle.vin == vin)
 
     def list_by_customer(self, customer_id: int) -> list[Vehicle]:
         stmt = (
@@ -28,9 +28,7 @@ class VehicleRepository(BaseRepository[Vehicle]):
 
     def list_active(self, limit: int = 50, offset: int = 0) -> tuple[list[Vehicle], int]:
         base = select(Vehicle).where(Vehicle.is_active.is_(True))
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Vehicle.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Vehicle.id.desc(), limit=limit, offset=offset)
 
     def search(self, query: str, limit: int = 50, offset: int = 0) -> tuple[list[Vehicle], int]:
         """Matches VIN, license plate, make, model, or color."""
@@ -44,9 +42,7 @@ class VehicleRepository(BaseRepository[Vehicle]):
                 Vehicle.color.ilike(pattern),
             )
         )
-        total = self.db.scalar(select(func.count()).select_from(base.subquery())) or 0
-        items = list(self.db.scalars(base.order_by(Vehicle.id.desc()).limit(limit).offset(offset)))
-        return items, total
+        return self._paginate(base, Vehicle.id.desc(), limit=limit, offset=offset)
 
     def add_mileage_record(
         self,

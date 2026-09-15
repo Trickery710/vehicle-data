@@ -63,7 +63,7 @@ class CustomerListView(QWidget):
         self.viewmodel.load()
 
     def _on_row_double_clicked(self, index) -> None:
-        customer = self.viewmodel.table_model.customer_at(index.row())
+        customer = self.viewmodel.table_model.row_at(index.row())
         if customer is not None and customer.id is not None:
             self.customer_selected.emit(customer.id)
 
